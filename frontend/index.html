@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CloudIDE+ - Cloud-Based Development Environment</title>
+    <meta name="description" content="CloudIDE+ - A powerful, browser-based IDE inspired by Visual Studio Code" />
+
+    <!-- Preconnect to external domains for better performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Monaco Editor and VS Code theme support -->
+    <style>
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+          'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background-color: #1e1e1e;
+        color: #d4d4d4;
+        overflow: hidden;
+        height: 100vh;
+        width: 100vw;
+      }
+
+      #root {
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
+      }
+
+      /* Loading screen styles */
+      .loading-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #1e1e1e;
+        color: #d4d4d4;
+      }
+
+      .loading-spinner {
+        width: 50px;
+        height: 50px;
+        border: 3px solid #333;
+        border-top: 3px solid #007acc;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 20px;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      .loading-text {
+        color: #d4d4d4;
+        font-size: 14px;
+        margin-bottom: 10px;
+      }
+
+      .loading-logo {
+        color: #007acc;
+        font-size: 24px;
+        font-weight: 600;
+        margin-bottom: 20px;
+      }
+
+      /* Hide loading screen once React loads */
+      .app-loaded .loading-container {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>
+      <div style="text-align: center; padding: 50px; background: #1e1e1e; color: #d4d4d4; height: 100vh;">
+        <h1 style="color: #007acc;">CloudIDE+ Requires JavaScript</h1>
+        <p>You need to enable JavaScript to run CloudIDE+.</p>
+        <p>Please enable JavaScript in your browser settings and reload the page.</p>
+      </div>
+    </noscript>
+
+    <div id="root">
+      <!-- Fallback loading screen while React loads -->
+      <div class="loading-container">
+        <div class="loading-logo">CloudIDE+</div>
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading your cloud development environment...</div>
+        <div style="font-size: 12px; color: #969696; margin-top: 20px;">
+          Initializing Monaco Editor and cloud services
+        </div>
+      </div>
+    </div>
+
+    <!-- Vite will inject the React app script here -->
+    <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Zoho SalesIQ Integration Placeholder -->
+    <!-- This will be configured later with actual Zoho SalesIQ code -->
+    <script type="text/javascript">
+      // Zoho SalesIQ integration will be added here
+      // window.$zoho = window.$zoho || {};
+      // console.log('Zoho SalesIQ placeholder loaded');
+    </script>
+
+    <!-- Google Analytics Placeholder -->
+    <!-- This will be configured later with actual GA code -->
+    <script type="text/javascript">
+      // Google Analytics integration will be added here
+      // console.log('Google Analytics placeholder loaded');
+    </script>
+  </body>
+</html>

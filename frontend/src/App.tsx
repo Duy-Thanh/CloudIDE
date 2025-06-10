@@ -44,6 +44,40 @@ interface SearchResult {
   match: string;
 }
 
+interface CodeSnippet {
+  id: string;
+  prefix: string;
+  body: string[];
+  description: string;
+  language: string;
+}
+
+interface Problem {
+  id: string;
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  file: string;
+  line: number;
+  column: number;
+  source: string;
+}
+
+interface ContextMenu {
+  x: number;
+  y: number;
+  items: ContextMenuItem[];
+  target?: FileTab | FileTreeItem;
+}
+
+interface ContextMenuItem {
+  id: string;
+  label: string;
+  icon?: string;
+  action: () => void;
+  separator?: boolean;
+  disabled?: boolean;
+}
+
 interface CodeIssue {
   id: string;
   type: 'error' | 'warning' | 'info';
@@ -110,9 +144,14 @@ const App: React.FC = () => {
   const [terminalInput, setTerminalInput] = useState('');
   const [activeView, setActiveView] = useState<'explorer' | 'search' | 'git' | 'extensions'>('explorer');
   const [dragOver, setDragOver] = useState(false);
+  const [problems, setProblems] = useState<Problem[]>([]);
+  const [showMinimap, setShowMinimap] = useState(true);
+  const [codeSnippets, setCodeSnippets] = useState<CodeSnippet[]>([]);
+  const [formatOnSave, setFormatOnSave] = useState(true);
+  const [showProblems, setShowProblems] = useState(true);
+  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const [codeIssues, setCodeIssues] = useState<CodeIssue[]>([]);
   const [isFormatting, setIsFormatting] = useState(false);
-  const [showProblems, setShowProblems] = useState(false);
   const [editorSettings, setEditorSettings] = useState<EditorSettings>({
     theme: 'vs-dark',
     fontSize: 14,
@@ -148,6 +187,19 @@ const App: React.FC = () => {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [currentSearchIndex, setCurrentSearchIndex] = useState(-1);
   const [searchMode, setSearchMode] = useState<'current' | 'project'>('current');
+  const [findReplaceOpen, setFindReplaceOpen] = useState(false);
+  const [caseSensitive, setCaseSensitive] = useState(false);
+  const [wholeWord, setWholeWord] = useState(false);
+  const [useRegex, setUseRegex] = useState(false);
+  const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
+  const [statusBarInfo, setStatusBarInfo] = useState({
+    line: 1,
+    column: 1,
+    selection: '',
+    encoding: 'UTF-8',
+    eol: 'LF',
+    spaces: 2
+  });
   const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
   const [bottomPanelHeight, setBottomPanelHeight] = useState(200);
   const [activeBottomTab, setActiveBottomTab] = useState('terminal');
@@ -171,6 +223,16 @@ const App: React.FC = () => {
 
     // Initialize sample project
     initializeSampleProject();
+
+    // Initialize code snippets
+    initializeCodeSnippets();
+
+    // Initialize problem detection
+    initializeProblems();
+
+    // Close context menu on click
+    const handleClickOutside = () => setContextMenu(null);
+    document.addEventListener('click', handleClickOutside);
 
     // Add keyboard shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -216,7 +278,10 @@ const App: React.FC = () => {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('click', handleClickOutside);
+    };
   }, [currentFile]);
 
   // Cleanup effect for auto-save timeout
@@ -805,6 +870,31 @@ Happy coding! 🎉
     if (currentFile) {
       lastSavedContentRef.current = currentFile.content;
     }
+
+    // Set up cursor position tracking
+    editor.onDidChangeCursorPosition((e: any) => {
+      setStatusBarInfo(prev => ({
+        ...prev,
+        line: e.position.lineNumber,
+        column: e.position.column
+      }));
+    });
+
+    editor.onDidChangeCursorSelection(() => {
+      const selection = editor.getSelection();
+      if (selection && !selection.isEmpty()) {
+        const selectedText = editor.getModel()?.getValueInRange(selection) || '';
+        setStatusBarInfo(prev => ({
+          ...prev,
+          selection: `${selectedText.length} chars selected`
+        }));
+      } else {
+        setStatusBarInfo(prev => ({
+          ...prev,
+          selection: ''
+        }));
+      }
+    });
 
     // Use Monaco's built-in VS Code dark theme
 
@@ -1422,6 +1512,189 @@ Happy coding! 🎉
     setTerminalOutput(prev => [...prev, `mkdir ${folderName}`, `✓ Created folder: ${folderName}`]);
   };
 
+  const initializeCodeSnippets = () => {
+    const defaultSnippets: CodeSnippet[] = [
+      {
+        id: 'js-function',
+        prefix: 'fn',
+        body: [
+          'function ${1:functionName}(${2:parameters}) {',
+          '  ${3:// function body}',
+          '  return ${4:value};',
+          '}'
+        ],
+        description: 'JavaScript Function',
+        language: 'javascript'
+      },
+      {
+        id: 'js-arrow',
+        prefix: 'af',
+        body: [
+          'const ${1:functionName} = (${2:parameters}) => {',
+          '  ${3:// function body}',
+          '  return ${4:value};',
+          '};'
+        ],
+        description: 'Arrow Function',
+        language: 'javascript'
+      },
+      {
+        id: 'react-component',
+        prefix: 'rfc',
+        body: [
+          'import React from \'react\';',
+          '',
+          'interface ${1:ComponentName}Props {',
+          '  ${2:// props}',
+          '}',
+          '',
+          'const ${1:ComponentName}: React.FC<${1:ComponentName}Props> = ({ ${3:props} }) => {',
+          '  return (',
+          '    <div>',
+          '      ${4:// component content}',
+          '    </div>',
+          '  );',
+          '};',
+          '',
+          'export default ${1:ComponentName};'
+        ],
+        description: 'React Functional Component',
+        language: 'typescript'
+      },
+      {
+        id: 'html-boilerplate',
+        prefix: 'html5',
+        body: [
+          '<!DOCTYPE html>',
+          '<html lang="${1:en}">',
+          '<head>',
+          '  <meta charset="UTF-8">',
+          '  <meta name="viewport" content="width=device-width, initial-scale=1.0">',
+          '  <title>${2:Document}</title>',
+          '  <style>',
+          '    ${3:/* CSS styles */}',
+          '  </style>',
+          '</head>',
+          '<body>',
+          '  ${4:<!-- content -->}',
+          '</body>',
+          '</html>'
+        ],
+        description: 'HTML5 Boilerplate',
+        language: 'html'
+      }
+    ];
+    setCodeSnippets(defaultSnippets);
+  };
+
+  const initializeProblems = () => {
+    const initialProblems: Problem[] = [
+      {
+        id: '1',
+        severity: 'warning',
+        message: 'Unused variable \'example\'',
+        file: 'script.js',
+        line: 15,
+        column: 7,
+        source: 'eslint'
+      },
+      {
+        id: '2',
+        severity: 'error',
+        message: 'Cannot find module \'missing-package\'',
+        file: 'app.js',
+        line: 3,
+        column: 1,
+        source: 'typescript'
+      }
+    ];
+    setProblems(initialProblems);
+  };
+
+
+
+  const toggleMinimap = () => {
+    setShowMinimap(!showMinimap);
+    if (editorRef.current) {
+      editorRef.current.updateOptions({
+        minimap: { enabled: !showMinimap }
+      });
+    }
+  };
+
+
+
+  const showContextMenu = (e: React.MouseEvent, target: FileTab | FileTreeItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const items: ContextMenuItem[] = [];
+
+    if ('language' in target) {
+      // File tab context menu
+      items.push(
+        { id: 'save', label: 'Save', icon: '💾', action: () => saveFile(target) },
+        { id: 'saveAs', label: 'Save As...', icon: '📄', action: () => downloadFile(target) },
+        { id: 'separator1', label: '', separator: true, action: () => {} },
+        { id: 'close', label: 'Close', icon: '✕', action: () => closeFile(target.id) },
+        { id: 'closeOthers', label: 'Close Others', action: () => closeOtherFiles(target.id) },
+        { id: 'closeAll', label: 'Close All', action: () => closeAllFiles() },
+        { id: 'separator2', label: '', separator: true, action: () => {} },
+        { id: 'copyPath', label: 'Copy Path', icon: '📋', action: () => navigator.clipboard.writeText(target.path) },
+        { id: 'copyName', label: 'Copy Filename', icon: '📋', action: () => navigator.clipboard.writeText(target.name) }
+      );
+    } else {
+      // File tree item context menu
+      if (target.type === 'file') {
+        items.push(
+          { id: 'open', label: 'Open', icon: '📂', action: () => openFile(target) },
+          { id: 'separator1', label: '', separator: true, action: () => {} }
+        );
+      }
+      items.push(
+        { id: 'rename', label: 'Rename', icon: '✏️', action: () => renameItem(target) },
+        { id: 'delete', label: 'Delete', icon: '🗑️', action: () => deleteItem(target) },
+        { id: 'separator2', label: '', separator: true, action: () => {} },
+        { id: 'copyPath', label: 'Copy Path', icon: '📋', action: () => navigator.clipboard.writeText(target.path) }
+      );
+    }
+
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      items,
+      target
+    });
+  };
+
+  const closeOtherFiles = (keepFileId: string) => {
+    const fileToKeep = openFiles.find(f => f.id === keepFileId);
+    if (fileToKeep) {
+      setOpenFiles([fileToKeep]);
+      setCurrentFile(fileToKeep);
+    }
+  };
+
+  const closeAllFiles = () => {
+    setOpenFiles([]);
+    setCurrentFile(null);
+  };
+
+  const renameItem = (item: FileTreeItem) => {
+    const newName = prompt('Enter new name:', item.name);
+    if (newName && newName !== item.name) {
+      console.log(`Renaming ${item.name} to ${newName}`);
+      setTerminalOutput(prev => [...prev, `mv ${item.name} ${newName}`, `✓ Renamed: ${item.name} → ${newName}`]);
+    }
+  };
+
+  const deleteItem = (item: FileTreeItem) => {
+    if (confirm(`Are you sure you want to delete ${item.name}?`)) {
+      console.log(`Deleting ${item.name}`);
+      setTerminalOutput(prev => [...prev, `rm ${item.name}`, `✓ Deleted: ${item.name}`]);
+    }
+  };
+
   const executeCommand = (command: string) => {
     switch (command) {
       case 'Save File':
@@ -1642,7 +1915,7 @@ Happy coding! 🎉
               onClick={() => {
                 setActiveView('search');
                 setSidebarOpen(true);
-                setSearchOpen(true);
+                setFindReplaceOpen(true);
               }}
               title="Search (Ctrl+Shift+F)"
             >
@@ -1684,6 +1957,13 @@ Happy coding! 🎉
             >
               ⚙️
             </button>
+            <button
+              className="activity-item"
+              onClick={() => setWorkspaceSettingsOpen(true)}
+              title="Workspace Settings"
+            >
+              🏗️
+            </button>
           </div>
         </div>
 
@@ -1698,6 +1978,8 @@ Happy coding! 🎉
                     <button className="sidebar-action" title="New File" onClick={() => createNewFile()}>📄</button>
                     <button className="sidebar-action" title="New Folder" onClick={createNewFolder}>📁</button>
                     <button className="sidebar-action" title="Upload File" onClick={() => document.getElementById('file-upload')?.click()}>📤</button>
+                    <button className="sidebar-action" title="Format Code" onClick={formatCode}>✨</button>
+                    <button className="sidebar-action" title="Toggle Minimap" onClick={toggleMinimap}>🗺️</button>
                     <button className="sidebar-action" title="Refresh">🔄</button>
                   </div>
                 </div>
@@ -1840,11 +2122,25 @@ Happy coding! 🎉
                 </div>
                 <div className="sidebar-content">
                   <div className="extensions-section">
+                    <div className="extensions-search">
+                      <input
+                        type="text"
+                        placeholder="Search extensions..."
+                        className="extension-search-input"
+                      />
+                    </div>
+                    <div className="extensions-categories">
+                      <button className="extension-category active">Popular</button>
+                      <button className="extension-category">Themes</button>
+                      <button className="extension-category">Snippets</button>
+                      <button className="extension-category">Formatters</button>
+                    </div>
                     <div className="extension-item installed">
                       <div className="extension-icon">🎨</div>
                       <div className="extension-info">
                         <div className="extension-name">VS Code Theme Pack</div>
                         <div className="extension-author">CloudIDE+</div>
+                        <div className="extension-stats">⭐ 4.8 (1.2M downloads)</div>
                       </div>
                       <button className="extension-action">⚙️</button>
                     </div>
@@ -1853,6 +2149,16 @@ Happy coding! 🎉
                       <div className="extension-info">
                         <div className="extension-name">Monaco IntelliSense</div>
                         <div className="extension-author">CloudIDE+</div>
+                        <div className="extension-stats">⭐ 4.9 (980K downloads)</div>
+                      </div>
+                      <button className="extension-action">⚙️</button>
+                    </div>
+                    <div className="extension-item installed">
+                      <div className="extension-icon">✨</div>
+                      <div className="extension-info">
+                        <div className="extension-name">Code Formatter</div>
+                        <div className="extension-author">CloudIDE+</div>
+                        <div className="extension-stats">⭐ 4.7 (750K downloads)</div>
                       </div>
                       <button className="extension-action">⚙️</button>
                     </div>
@@ -1861,6 +2167,7 @@ Happy coding! 🎉
                       <div className="extension-info">
                         <div className="extension-name">Prettier Code Formatter</div>
                         <div className="extension-author">Prettier</div>
+                        <div className="extension-stats">⭐ 4.9 (12.5M downloads)</div>
                       </div>
                       <button className="extension-action">📥</button>
                     </div>
@@ -1869,6 +2176,25 @@ Happy coding! 🎉
                       <div className="extension-info">
                         <div className="extension-name">File Utils</div>
                         <div className="extension-author">CloudIDE+</div>
+                        <div className="extension-stats">⭐ 4.6 (320K downloads)</div>
+                      </div>
+                      <button className="extension-action">📥</button>
+                    </div>
+                    <div className="extension-item">
+                      <div className="extension-icon">🌈</div>
+                      <div className="extension-info">
+                        <div className="extension-name">Bracket Pair Colorizer</div>
+                        <div className="extension-author">CoenraadS</div>
+                        <div className="extension-stats">⭐ 4.5 (8.2M downloads)</div>
+                      </div>
+                      <button className="extension-action">📥</button>
+                    </div>
+                    <div className="extension-item">
+                      <div className="extension-icon">🎯</div>
+                      <div className="extension-info">
+                        <div className="extension-name">Error Lens</div>
+                        <div className="extension-author">PhilHindle</div>
+                        <div className="extension-stats">⭐ 4.8 (2.1M downloads)</div>
                       </div>
                       <button className="extension-action">📥</button>
                     </div>
@@ -1892,6 +2218,7 @@ Happy coding! 🎉
                       key={file.id}
                       className={`tab ${currentFile?.id === file.id ? 'active' : ''}`}
                       onClick={() => setCurrentFile(file)}
+                      onContextMenu={(e) => showContextMenu(e, file)}
                     >
                       <span className="tab-icon">{getFileIcon(file.name)}</span>
                       <span className="tab-name">{file.name}</span>
@@ -2029,7 +2356,14 @@ Happy coding! 🎉
                           },
                           mouseWheelZoom: editorSettings.mouseWheelZoom,
                           contextmenu: true,
-                          copyWithSyntaxHighlighting: true
+                          copyWithSyntaxHighlighting: true,
+                          multiCursorModifier: 'alt',
+                          multiCursorMergeOverlapping: true,
+                          selectOnLineNumbers: true,
+                          find: {
+                            seedSearchStringFromSelection: 'selection',
+                            autoFindInSelection: 'multiline'
+                          }
                         }}
                         loading={<div className="editor-loading">Loading Monaco Editor...</div>}
                       />
@@ -2351,20 +2685,36 @@ Happy coding! 🎉
       <footer className="status-bar">
         <div className="status-left">
           <span>Ready</span>
-          {currentFile && <span>• {currentFile.name}</span>}
-          <button className="status-button" onClick={() => setBottomPanelOpen(!bottomPanelOpen)}>
-            {bottomPanelOpen ? '▼ Hide Panel' : '▲ Show Panel'}
-          </button>
+          <span>🔧 CloudIDE+</span>
+          {currentFile && (
+            <>
+              <span>📄 {currentFile.name}</span>
+              <span>Ln {statusBarInfo.line}, Col {statusBarInfo.column}</span>
+              {statusBarInfo.selection && <span>{statusBarInfo.selection}</span>}
+            </>
+          )}
         </div>
         <div className="status-right">
-          <span>UTF-8</span>
-          <span>LF</span>
+          <span className="clickable" onClick={() => setWorkspaceSettingsOpen(true)}>
+            {statusBarInfo.encoding}
+          </span>
+          <span className="clickable" onClick={() => setWorkspaceSettingsOpen(true)}>
+            {statusBarInfo.eol}
+          </span>
+          <span className="clickable" onClick={() => setWorkspaceSettingsOpen(true)}>
+            Spaces: {statusBarInfo.spaces}
+          </span>
           <span className="clickable" onClick={() => console.log('Language selector')}>
             {currentFile?.language || 'Plain Text'}
           </span>
           <span className="clickable" onClick={() => setSettingsOpen(true)}>
             {editorSettings.theme === 'vs-dark' ? '🌙' : '☀️'}
           </span>
+          {problems.length > 0 && (
+            <span className="status-problems" onClick={() => setActiveBottomTab('problems')}>
+              ⚠️ {problems.filter(p => p.severity === 'error').length} errors, {problems.filter(p => p.severity === 'warning').length} warnings
+            </span>
+          )}
         </div>
       </footer>
 
@@ -2486,6 +2836,32 @@ Happy coding! 🎉
                 Replace All
               </button>
             </div>
+            <div className="search-options">
+              <label className="search-option">
+                <input
+                  type="checkbox"
+                  checked={caseSensitive}
+                  onChange={(e) => setCaseSensitive(e.target.checked)}
+                />
+                <span>Case sensitive</span>
+              </label>
+              <label className="search-option">
+                <input
+                  type="checkbox"
+                  checked={wholeWord}
+                  onChange={(e) => setWholeWord(e.target.checked)}
+                />
+                <span>Whole word</span>
+              </label>
+              <label className="search-option">
+                <input
+                  type="checkbox"
+                  checked={useRegex}
+                  onChange={(e) => setUseRegex(e.target.checked)}
+                />
+                <span>Use regex</span>
+              </label>
+            </div>
             {searchResults.length > 0 && (
               <div className="search-results">
                 <div className="search-results-header">
@@ -2519,6 +2895,135 @@ Happy coding! 🎉
         </div>
       )}
 
+      {/* Advanced Find/Replace Modal */}
+      {findReplaceOpen && (
+        <div className="modal-overlay" onClick={() => setFindReplaceOpen(false)}>
+          <div className="modal find-replace-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>🔍 Advanced Find & Replace</h3>
+              <button className="modal-close" onClick={() => setFindReplaceOpen(false)}>×</button>
+            </div>
+            <div className="modal-content">
+              <div className="find-replace-form">
+                <div className="form-group">
+                  <label>Find:</label>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Enter search term..."
+                    className="form-input"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Replace:</label>
+                  <input
+                    type="text"
+                    value={replaceQuery}
+                    onChange={(e) => setReplaceQuery(e.target.value)}
+                    placeholder="Enter replacement..."
+                    className="form-input"
+                  />
+                </div>
+                <div className="form-options">
+                  <label className="form-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={caseSensitive}
+                      onChange={(e) => setCaseSensitive(e.target.checked)}
+                    />
+                    <span>Case sensitive</span>
+                  </label>
+                  <label className="form-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={wholeWord}
+                      onChange={(e) => setWholeWord(e.target.checked)}
+                    />
+                    <span>Match whole word</span>
+                  </label>
+                  <label className="form-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={useRegex}
+                      onChange={(e) => setUseRegex(e.target.checked)}
+                    />
+                    <span>Use regular expressions</span>
+                  </label>
+                </div>
+                <div className="form-actions">
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => performSearch(searchQuery, searchMode)}
+                  >
+                    Find All
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => performReplace(searchQuery, replaceQuery, false)}
+                  >
+                    Replace
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => performReplace(searchQuery, replaceQuery, true)}
+                  >
+                    Replace All
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Snippets Manager Modal */}
+      {commandPaletteOpen && (
+        <div className="command-palette-overlay" onClick={() => setCommandPaletteOpen(false)}>
+          <div className="command-palette" onClick={(e) => e.stopPropagation()}>
+            <div className="command-palette-header">
+              <input
+                type="text"
+                placeholder="Type a command or snippet..."
+                autoFocus
+                onChange={() => {
+                  // Filter commands based on query
+                }}
+              />
+            </div>
+            <div className="command-palette-content">
+              <div className="command-section">
+                <div className="command-section-title">Commands</div>
+                <div className="command-item">
+                  <span className="command-name">Save File</span>
+                  <span className="command-shortcut">Ctrl+S</span>
+                </div>
+                <div className="command-item">
+                  <span className="command-name">Find & Replace</span>
+                  <span className="command-shortcut">Ctrl+H</span>
+                </div>
+                <div className="command-item">
+                  <span className="command-name">Format Document</span>
+                  <span className="command-shortcut">Shift+Alt+F</span>
+                </div>
+              </div>
+              <div className="command-section">
+                <div className="command-section-title">Snippets</div>
+                {codeSnippets.map((snippet) => (
+                  <div key={snippet.id} className="command-item snippet-item">
+                    <div className="snippet-info">
+                      <span className="snippet-prefix">{snippet.prefix}</span>
+                      <span className="snippet-description">{snippet.description}</span>
+                    </div>
+                    <span className="snippet-language">{snippet.language}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Settings Modal */}
       <SettingsModal
         isOpen={settingsOpen}
@@ -2530,6 +3035,112 @@ Happy coding! 🎉
         }}
       />
 
+      {/* Workspace Settings Modal */}
+      {workspaceSettingsOpen && (
+        <div className="modal-overlay" onClick={() => setWorkspaceSettingsOpen(false)}>
+          <div className="modal workspace-settings-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>🏗️ Workspace Settings</h3>
+              <button className="modal-close" onClick={() => setWorkspaceSettingsOpen(false)}>×</button>
+            </div>
+            <div className="modal-content">
+              <div className="workspace-settings">
+                <div className="settings-group">
+                  <h4>Editor Configuration</h4>
+                  <div className="setting-row">
+                    <label>Tab Size:</label>
+                    <select
+                      value={statusBarInfo.spaces}
+                      onChange={(e) => setStatusBarInfo(prev => ({...prev, spaces: parseInt(e.target.value)}))}
+                    >
+                      <option value={2}>2 spaces</option>
+                      <option value={4}>4 spaces</option>
+                      <option value={8}>8 spaces</option>
+                    </select>
+                  </div>
+                  <div className="setting-row">
+                    <label>End of Line:</label>
+                    <select
+                      value={statusBarInfo.eol}
+                      onChange={(e) => setStatusBarInfo(prev => ({...prev, eol: e.target.value}))}
+                    >
+                      <option value="LF">LF (Unix)</option>
+                      <option value="CRLF">CRLF (Windows)</option>
+                      <option value="CR">CR (Mac)</option>
+                    </select>
+                  </div>
+                  <div className="setting-row">
+                    <label>Encoding:</label>
+                    <select
+                      value={statusBarInfo.encoding}
+                      onChange={(e) => setStatusBarInfo(prev => ({...prev, encoding: e.target.value}))}
+                    >
+                      <option value="UTF-8">UTF-8</option>
+                      <option value="UTF-16">UTF-16</option>
+                      <option value="ASCII">ASCII</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="settings-group">
+                  <h4>Workspace Features</h4>
+                  <div className="setting-row">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={formatOnSave}
+                        onChange={(e) => setFormatOnSave(e.target.checked)}
+                      />
+                      Format on Save
+                    </label>
+                  </div>
+                  <div className="setting-row">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={showProblems}
+                        onChange={(e) => setShowProblems(e.target.checked)}
+                      />
+                      Show Problems Panel
+                    </label>
+                  </div>
+                  <div className="setting-row">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={showMinimap}
+                        onChange={(e) => setShowMinimap(e.target.checked)}
+                      />
+                      Show Minimap
+                    </label>
+                  </div>
+                </div>
+
+                <div className="settings-group">
+                  <h4>File Management</h4>
+                  <div className="setting-row">
+                    <label>Auto Save:</label>
+                    <select value={editorSettings.autoSave ? "on" : "off"}>
+                      <option value="off">Off</option>
+                      <option value="on">After Delay</option>
+                      <option value="focus">On Focus Change</option>
+                    </select>
+                  </div>
+                  <div className="setting-row">
+                    <button className="btn btn-secondary" onClick={() => {
+                      localStorage.clear();
+                      console.log('Workspace reset');
+                    }}>
+                      Reset Workspace
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hidden File Upload Input */}
       <input
         id="file-upload"
@@ -2539,6 +3150,38 @@ Happy coding! 🎉
         onChange={handleFileUpload}
         style={{ display: 'none' }}
       />
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{
+            left: contextMenu.x,
+            top: contextMenu.y,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {contextMenu.items.map((item, index) =>
+            item.separator ? (
+              <div key={index} className="context-menu-separator" />
+            ) : (
+              <div
+                key={item.id}
+                className={`context-menu-item ${item.disabled ? 'disabled' : ''}`}
+                onClick={() => {
+                  if (!item.disabled) {
+                    item.action();
+                    setContextMenu(null);
+                  }
+                }}
+              >
+                {item.icon && <span className="context-menu-icon">{item.icon}</span>}
+                <span className="context-menu-label">{item.label}</span>
+              </div>
+            )
+          )}
+        </div>
+      )}
 
       {/* Drag and Drop Overlay */}
       {dragOver && (

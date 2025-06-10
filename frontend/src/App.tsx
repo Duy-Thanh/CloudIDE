@@ -3,6 +3,7 @@ import Editor, { Monaco } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import SettingsModal from './components/SettingsModal';
 import './App.css';
+import './enhanced-features.css';
 
 // Component interfaces
 interface FileTab {
@@ -142,7 +143,7 @@ const App: React.FC = () => {
   const [currentDirectory, setCurrentDirectory] = useState('/my-projects/sample-project');
   const [terminalOutput, setTerminalOutput] = useState(['Welcome to CloudIDE+ Terminal']);
   const [terminalInput, setTerminalInput] = useState('');
-  const [activeView, setActiveView] = useState<'explorer' | 'search' | 'git' | 'extensions'>('explorer');
+  const [activeView, setActiveView] = useState<'explorer' | 'search' | 'git' | 'extensions' | 'outline'>('explorer');
   const [dragOver, setDragOver] = useState(false);
   const [problems, setProblems] = useState<Problem[]>([]);
   const [showMinimap, setShowMinimap] = useState(true);
@@ -152,6 +153,15 @@ const App: React.FC = () => {
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const [codeIssues, setCodeIssues] = useState<CodeIssue[]>([]);
   const [isFormatting, setIsFormatting] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(300);
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+  const [isResizingBottomPanel, setIsResizingBottomPanel] = useState(false);
+  const [notifications, setNotifications] = useState<Array<{id: string, message: string, type: 'info' | 'warning' | 'error'}>>([]);
+  const [quickOpenVisible, setQuickOpenVisible] = useState(false);
+  const [quickOpenQuery, setQuickOpenQuery] = useState('');
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [keyboardShortcutsVisible, setKeyboardShortcutsVisible] = useState(false);
+  const [outlineItems, setOutlineItems] = useState<Array<{name: string, line: number, type: string}>>([]);
   const [editorSettings, setEditorSettings] = useState<EditorSettings>({
     theme: 'vs-dark',
     fontSize: 14,
@@ -181,6 +191,9 @@ const App: React.FC = () => {
     wordBasedSuggestions: true
   });
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState('');
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
+  const [currentThemeId, setCurrentThemeId] = useState('vs-dark');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [replaceQuery, setReplaceQuery] = useState('');
@@ -212,91 +225,6 @@ const App: React.FC = () => {
   const lastSavedContentRef = useRef<string>('');
   const editorPositionRef = useRef<{ [fileId: string]: any }>({});
   const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    // Initialize Firebase Auth check
-    // This will be implemented when we add Firebase
-    console.log('CloudIDE+ initializing...');
-
-    // Mark app as loaded to hide loading screen
-    document.body.classList.add('app-loaded');
-
-    // Initialize sample project
-    initializeSampleProject();
-
-    // Initialize code snippets
-    initializeCodeSnippets();
-
-    // Initialize problem detection
-    initializeProblems();
-
-    // Close context menu on click
-    const handleClickOutside = () => setContextMenu(null);
-    document.addEventListener('click', handleClickOutside);
-
-    // Add keyboard shortcuts
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        switch (e.key) {
-          case 's':
-            e.preventDefault();
-            saveCurrentFile();
-            break;
-          case 'n':
-            e.preventDefault();
-            createNewFile();
-            break;
-          case 'w':
-            e.preventDefault();
-            if (currentFile) {
-              closeFile(currentFile.id);
-            }
-            break;
-          case 'p':
-            if (e.shiftKey) {
-              e.preventDefault();
-              setCommandPaletteOpen(true);
-            }
-            break;
-          case 'f':
-            e.preventDefault();
-            setSearchOpen(true);
-            break;
-          case 'b':
-            e.preventDefault();
-            setSidebarOpen(!sidebarOpen);
-            break;
-          case 'j':
-            e.preventDefault();
-            setBottomPanelOpen(!bottomPanelOpen);
-            break;
-        }
-      } else if (e.key === 'F1') {
-        e.preventDefault();
-        setCommandPaletteOpen(true);
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('click', handleClickOutside);
-    };
-  }, [currentFile]);
-
-  // Cleanup effect for auto-save timeout
-  useEffect(() => {
-    return () => {
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current);
-        autoSaveTimeoutRef.current = null;
-      }
-      if (throttleTimeoutRef.current) {
-        clearTimeout(throttleTimeoutRef.current);
-        throttleTimeoutRef.current = null;
-      }
-    };
-  }, []);
 
   const initializeSampleProject = () => {
     const sampleTree: FileTreeItem[] = [
@@ -344,6 +272,219 @@ const App: React.FC = () => {
     setFileTree(sampleTree);
     setExpandedFolders(new Set(['my-projects', 'sample-project']));
   };
+
+  const initializeCodeSnippets = () => {
+    const defaultSnippets: CodeSnippet[] = [
+      {
+        id: 'js-function',
+        prefix: 'fn',
+        body: [
+          'function ${1:functionName}(${2:parameters}) {',
+          '  ${3:// function body}',
+          '  return ${4:value};',
+          '}'
+        ],
+        description: 'JavaScript Function',
+        language: 'javascript'
+      },
+      {
+        id: 'js-arrow',
+        prefix: 'af',
+        body: [
+          'const ${1:functionName} = (${2:parameters}) => {',
+          '  ${3:// function body}',
+          '  return ${4:value};',
+          '};'
+        ],
+        description: 'Arrow Function',
+        language: 'javascript'
+      },
+      {
+        id: 'react-component',
+        prefix: 'rfc',
+        body: [
+          'import React from \'react\';',
+          '',
+          'interface ${1:ComponentName}Props {',
+          '  ${2:// props}',
+          '}',
+          '',
+          'const ${1:ComponentName}: React.FC<${1:ComponentName}Props> = ({ ${3:props} }) => {',
+          '  return (',
+          '    <div>',
+          '      ${4:// component content}',
+          '    </div>',
+          '  );',
+          '};',
+          '',
+          'export default ${1:ComponentName};'
+        ],
+        description: 'React Functional Component',
+        language: 'typescript'
+      },
+      {
+        id: 'html-boilerplate',
+        prefix: 'html5',
+        body: [
+          '<!DOCTYPE html>',
+          '<html lang="${1:en}">',
+          '<head>',
+          '  <meta charset="UTF-8">',
+          '  <meta name="viewport" content="width=device-width, initial-scale=1.0">',
+          '  <title>${2:Document}</title>',
+          '  <style>',
+          '    ${3:/* CSS styles */}',
+          '  </style>',
+          '</head>',
+          '<body>',
+          '  ${4:<!-- content -->}',
+          '</body>',
+          '</html>'
+        ],
+        description: 'HTML5 Boilerplate',
+        language: 'html'
+      }
+    ];
+    setCodeSnippets(defaultSnippets);
+  };
+
+  const initializeProblems = () => {
+    const initialProblems: Problem[] = [
+      {
+        id: '1',
+        severity: 'warning',
+        message: 'Unused variable \'example\'',
+        file: 'script.js',
+        line: 15,
+        column: 7,
+        source: 'eslint'
+      },
+      {
+        id: '2',
+        severity: 'error',
+        message: 'Cannot find module \'missing-package\'',
+        file: 'app.js',
+        line: 3,
+        column: 1,
+        source: 'typescript'
+      }
+    ];
+    setProblems(initialProblems);
+  };
+
+
+
+  useEffect(() => {
+    // Initialize Firebase Auth check
+    // This will be implemented when we add Firebase
+    console.log('CloudIDE+ initializing...');
+
+    // Mark app as loaded to hide loading screen
+    document.body.classList.add('app-loaded');
+
+    // Initialize sample project
+    initializeSampleProject();
+
+    // Initialize code snippets
+    initializeCodeSnippets();
+
+    // Initialize problem detection
+    initializeProblems();
+
+    // Close context menu on click
+    const handleClickOutside = () => setContextMenu(null);
+    document.addEventListener('click', handleClickOutside);
+
+    // Add keyboard shortcuts
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key) {
+          case 's':
+            e.preventDefault();
+            saveCurrentFile();
+            break;
+          case 'n':
+            e.preventDefault();
+            createNewFile();
+            break;
+          case 'w':
+            e.preventDefault();
+            if (currentFile) {
+              closeFile(currentFile.id);
+            }
+            break;
+          case 'p':
+            e.preventDefault();
+            if (e.shiftKey) {
+              setCommandPaletteOpen(true);
+            } else {
+              setQuickOpenVisible(true);
+            }
+            break;
+          case 'f':
+            e.preventDefault();
+            setSearchOpen(true);
+            break;
+          case 'g':
+            e.preventDefault();
+            showGoToLineDialog();
+            break;
+          case 'k':
+            if (e.shiftKey) {
+              e.preventDefault();
+              setKeyboardShortcutsVisible(true);
+            }
+            break;
+          case 'b':
+            e.preventDefault();
+            setSidebarOpen(!sidebarOpen);
+            break;
+          case 'j':
+            e.preventDefault();
+            setBottomPanelOpen(!bottomPanelOpen);
+            break;
+          case '=':
+            e.preventDefault();
+            setZoomLevel(prev => Math.min(prev + 0.1, 3));
+            break;
+          case '-':
+            e.preventDefault();
+            setZoomLevel(prev => Math.max(prev - 0.1, 0.5));
+            break;
+          case '0':
+            e.preventDefault();
+            setZoomLevel(1);
+            break;
+        }
+      } else if (e.key === 'F1') {
+      e.preventDefault();
+      setCommandPaletteOpen(true);
+    } else if (e.key === 'F2') {
+      e.preventDefault();
+      setKeyboardShortcutsVisible(true);
+    }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [currentFile]);
+
+  // Cleanup effect for auto-save timeout
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+        autoSaveTimeoutRef.current = null;
+      }
+      if (throttleTimeoutRef.current) {
+        clearTimeout(throttleTimeoutRef.current);
+        throttleTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const handleLogin = () => {
     // Placeholder for Firebase Google Auth
@@ -723,35 +864,132 @@ Happy coding! 🎉
     if (isFolder) return '📁';
 
     const extension = filename.split('.').pop()?.toLowerCase();
+    const baseName = filename.toLowerCase();
+
+    // Special files by exact name
+    const specialFiles: { [key: string]: string } = {
+      'package.json': '📦',
+      'package-lock.json': '🔒',
+      'yarn.lock': '🧶',
+      'readme.md': '📖',
+      'license': '📜',
+      'dockerfile': '🐳',
+      'docker-compose.yml': '🐳',
+      'docker-compose.yaml': '🐳',
+      '.gitignore': '🚫',
+      '.env': '🔐',
+      '.env.local': '🔐',
+      '.env.example': '🔐',
+      'tsconfig.json': '🔷',
+      'vite.config.ts': '⚡',
+      'webpack.config.js': '📦',
+      'babel.config.js': '🔄',
+      'eslint.config.js': '🔍',
+      '.eslintrc': '🔍',
+      'prettier.config.js': '💅',
+      '.prettierrc': '💅'
+    };
+
+    if (specialFiles[baseName]) {
+      return specialFiles[baseName];
+    }
+
+    // Icons by extension
     const iconMap: { [key: string]: string } = {
+      // JavaScript & TypeScript
       'js': '🟨',
       'jsx': '⚛️',
       'ts': '🔷',
       'tsx': '⚛️',
+      'mjs': '🟨',
+      'cjs': '🟨',
+
+      // Web Technologies
+      'html': '🌐',
+      'htm': '🌐',
+      'css': '🎨',
+      'scss': '💅',
+      'sass': '💅',
+      'less': '💜',
+      'vue': '💚',
+      'svelte': '🧡',
+
+      // Backend Languages
       'py': '🐍',
       'java': '☕',
       'cpp': '🔧',
+      'cxx': '🔧',
+      'cc': '🔧',
       'c': '🔧',
+      'h': '📄',
+      'hpp': '📄',
       'cs': '#️⃣',
       'php': '🐘',
       'rb': '💎',
       'go': '🐹',
       'rs': '🦀',
-      'html': '🌐',
-      'css': '🎨',
-      'scss': '💅',
+      'kt': '🟣',
+      'swift': '🧡',
+      'dart': '🎯',
+
+      // Data & Config
       'json': '📋',
       'xml': '📄',
-      'md': '📝',
-      'sql': '🗃️',
-      'sh': '⚡',
       'yaml': '⚙️',
       'yml': '⚙️',
-      'gitignore': '📋',
-      'env': '🔐',
+      'toml': '⚙️',
+      'ini': '⚙️',
+      'cfg': '⚙️',
+      'conf': '⚙️',
+      'properties': '⚙️',
+
+      // Documentation
+      'md': '📝',
+      'mdx': '📝',
+      'txt': '📄',
+      'rtf': '📄',
+      'pdf': '📕',
+      'doc': '📘',
+      'docx': '📘',
+
+      // Database
+      'sql': '🗃️',
+      'db': '🗃️',
+      'sqlite': '🗃️',
+
+      // Shell & Scripts
+      'sh': '⚡',
+      'bash': '⚡',
+      'zsh': '⚡',
+      'fish': '🐠',
+      'ps1': '💙',
+      'bat': '⚡',
+      'cmd': '⚡',
+
+      // Images
+      'png': '🖼️',
+      'jpg': '🖼️',
+      'jpeg': '🖼️',
+      'gif': '🖼️',
+      'svg': '🎨',
+      'webp': '🖼️',
+      'ico': '🖼️',
+
+      // Archives
+      'zip': '📦',
+      'tar': '📦',
+      'gz': '📦',
+      'rar': '📦',
+      '7z': '📦',
+
+      // Others
       'lock': '🔒',
-      'config': '⚙️'
+      'log': '📊',
+      'csv': '📊',
+      'xlsx': '📊',
+      'xls': '📊'
     };
+
     return iconMap[extension || ''] || '📄';
   };
 
@@ -769,6 +1007,86 @@ Happy coding! 🎉
     });
 
     setBreadcrumbs(breadcrumbList);
+  };
+
+  const navigateToBreadcrumb = (breadcrumb: Breadcrumb) => {
+    const item = findFileByPath(fileTree, breadcrumb.path);
+    if (item && item.type === 'file') {
+      openFile(item);
+    }
+  };
+
+  const findFileByPath = (items: FileTreeItem[], path: string): FileTreeItem | null => {
+    for (const item of items) {
+      if (item.path === path) {
+        return item;
+      }
+      if (item.children) {
+        const found = findFileByPath(item.children, path);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const generateOutline = (content: string, language: string) => {
+    const lines = content.split('\n');
+    const items: Array<{name: string, line: number, type: string}> = [];
+
+    lines.forEach((line, index) => {
+      const lineNumber = index + 1;
+      const trimmedLine = line.trim();
+
+      if (language === 'javascript' || language === 'typescript') {
+        // Functions
+        if (trimmedLine.match(/^(export\s+)?(async\s+)?function\s+\w+/)) {
+          const match = trimmedLine.match(/function\s+(\w+)/);
+          if (match) items.push({name: match[1], line: lineNumber, type: 'function'});
+        }
+        // Arrow functions
+        if (trimmedLine.match(/^(export\s+)?const\s+\w+\s*=\s*(\([^)]*\))?\s*=>/)) {
+          const match = trimmedLine.match(/const\s+(\w+)/);
+          if (match) items.push({name: match[1], line: lineNumber, type: 'function'});
+        }
+        // Classes
+        if (trimmedLine.match(/^(export\s+)?(abstract\s+)?class\s+\w+/)) {
+          const match = trimmedLine.match(/class\s+(\w+)/);
+          if (match) items.push({name: match[1], line: lineNumber, type: 'class'});
+        }
+        // Interfaces
+        if (trimmedLine.match(/^(export\s+)?interface\s+\w+/)) {
+          const match = trimmedLine.match(/interface\s+(\w+)/);
+          if (match) items.push({name: match[1], line: lineNumber, type: 'interface'});
+        }
+      } else if (language === 'html') {
+        // HTML elements with IDs
+        if (trimmedLine.match(/<\w+[^>]*id=['"]([^'"]+)['"]/)) {
+          const match = trimmedLine.match(/id=['"]([^'"]+)['"]/);
+          if (match) items.push({name: `#${match[1]}`, line: lineNumber, type: 'id'});
+        }
+        // Headers
+        if (trimmedLine.match(/<h[1-6][^>]*>/)) {
+          const match = trimmedLine.match(/<h([1-6])[^>]*>([^<]+)/);
+          if (match) items.push({name: match[2].trim(), line: lineNumber, type: `h${match[1]}`});
+        }
+      } else if (language === 'css') {
+        // CSS selectors
+        if (trimmedLine.match(/^[.#]?[\w-]+\s*{/) || trimmedLine.match(/^[.#]?[\w-]+\s*,/)) {
+          const match = trimmedLine.match(/([.#]?[\w-]+)/);
+          if (match) items.push({name: match[1], line: lineNumber, type: 'selector'});
+        }
+      }
+    });
+
+    setOutlineItems(items);
+  };
+
+  const navigateToOutlineItem = (item: {name: string, line: number, type: string}) => {
+    if (editorRef.current) {
+      editorRef.current.setPosition({ lineNumber: item.line, column: 1 });
+      editorRef.current.revealLineInCenter(item.line);
+      editorRef.current.focus();
+    }
   };
 
   const toggleFolder = (folderId: string) => {
@@ -1037,12 +1355,49 @@ Happy coding! 🎉
       updatePreview(value);
     }
 
+    // Update outline
+    if (currentFile) {
+      generateOutline(value, currentFile.language);
+    }
+
     // Run linting
     if (currentFile) {
       const issues = lintCode({ ...currentFile, content: value });
       setCodeIssues(issues);
     }
   };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="login-container">
+        <div className="login-card">
+          <div className="logo">
+            <h1>CloudIDE+</h1>
+            <p>Cloud-based development environment</p>
+          </div>
+          <button className="login-button" onClick={handleLogin}>
+            <svg width="18" height="18" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            Sign in with Google
+          </button>
+          <div className="login-features">
+            <h3>Features:</h3>
+            <ul>
+              <li>🎨 Monaco Editor (VS Code experience)</li>
+              <li>☁️ Google Drive integration</li>
+              <li>🔐 Firebase authentication</li>
+              <li>💬 Live support chat</li>
+              <li>🚀 Cloud deployment ready</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const updatePreview = (htmlContent: string) => {
     setPreviewContent(htmlContent);
@@ -1060,16 +1415,15 @@ Happy coding! 🎉
     };
 
     // Adjust existing groups width
-    const updatedGroups = editorGroups.map(group => ({
+    const adjustedGroups = editorGroups.map(group => ({
       ...group,
-      width: group.width * 0.7
+      width: group.width * 0.66
     }));
 
-    setEditorGroups([...updatedGroups, newGroup]);
+    setEditorGroups([...adjustedGroups, newGroup]);
   };
 
-
-
+  // Terminal command execution
   const executeTerminalCommand = (command: string) => {
     const trimmedCommand = command.trim();
     if (!trimmedCommand) return;
@@ -1512,104 +1866,88 @@ Happy coding! 🎉
     setTerminalOutput(prev => [...prev, `mkdir ${folderName}`, `✓ Created folder: ${folderName}`]);
   };
 
-  const initializeCodeSnippets = () => {
-    const defaultSnippets: CodeSnippet[] = [
-      {
-        id: 'js-function',
-        prefix: 'fn',
-        body: [
-          'function ${1:functionName}(${2:parameters}) {',
-          '  ${3:// function body}',
-          '  return ${4:value};',
-          '}'
-        ],
-        description: 'JavaScript Function',
-        language: 'javascript'
-      },
-      {
-        id: 'js-arrow',
-        prefix: 'af',
-        body: [
-          'const ${1:functionName} = (${2:parameters}) => {',
-          '  ${3:// function body}',
-          '  return ${4:value};',
-          '};'
-        ],
-        description: 'Arrow Function',
-        language: 'javascript'
-      },
-      {
-        id: 'react-component',
-        prefix: 'rfc',
-        body: [
-          'import React from \'react\';',
-          '',
-          'interface ${1:ComponentName}Props {',
-          '  ${2:// props}',
-          '}',
-          '',
-          'const ${1:ComponentName}: React.FC<${1:ComponentName}Props> = ({ ${3:props} }) => {',
-          '  return (',
-          '    <div>',
-          '      ${4:// component content}',
-          '    </div>',
-          '  );',
-          '};',
-          '',
-          'export default ${1:ComponentName};'
-        ],
-        description: 'React Functional Component',
-        language: 'typescript'
-      },
-      {
-        id: 'html-boilerplate',
-        prefix: 'html5',
-        body: [
-          '<!DOCTYPE html>',
-          '<html lang="${1:en}">',
-          '<head>',
-          '  <meta charset="UTF-8">',
-          '  <meta name="viewport" content="width=device-width, initial-scale=1.0">',
-          '  <title>${2:Document}</title>',
-          '  <style>',
-          '    ${3:/* CSS styles */}',
-          '  </style>',
-          '</head>',
-          '<body>',
-          '  ${4:<!-- content -->}',
-          '</body>',
-          '</html>'
-        ],
-        description: 'HTML5 Boilerplate',
-        language: 'html'
+  const showGoToLineDialog = () => {
+    const lineNumber = prompt('Go to line:');
+    if (lineNumber && editorRef.current) {
+      const line = parseInt(lineNumber);
+      if (line > 0) {
+        editorRef.current.setPosition({ lineNumber: line, column: 1 });
+        editorRef.current.revealLineInCenter(line);
+        editorRef.current.focus();
       }
-    ];
-    setCodeSnippets(defaultSnippets);
+    }
   };
 
-  const initializeProblems = () => {
-    const initialProblems: Problem[] = [
-      {
-        id: '1',
-        severity: 'warning',
-        message: 'Unused variable \'example\'',
-        file: 'script.js',
-        line: 15,
-        column: 7,
-        source: 'eslint'
-      },
-      {
-        id: '2',
-        severity: 'error',
-        message: 'Cannot find module \'missing-package\'',
-        file: 'app.js',
-        line: 3,
-        column: 1,
-        source: 'typescript'
-      }
-    ];
-    setProblems(initialProblems);
+  const showNotification = (message: string, type: 'info' | 'warning' | 'error' = 'info') => {
+    const id = Date.now().toString();
+    setNotifications(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 5000);
   };
+
+  const navigateToProblem = (problem: Problem) => {
+    const file = openFiles.find(f => f.name === problem.file);
+    if (file) {
+      setCurrentFile(file);
+      setTimeout(() => {
+        if (editorRef.current) {
+          editorRef.current.setPosition({ lineNumber: problem.line, column: problem.column });
+          editorRef.current.revealLineInCenter(problem.line);
+          editorRef.current.focus();
+        }
+      }, 100);
+    } else {
+      showNotification(`File ${problem.file} is not open`, 'warning');
+    }
+  };
+
+  const handleSidebarResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingSidebar(true);
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = Math.max(200, Math.min(600, e.clientX));
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingSidebar(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleBottomPanelResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingBottomPanel(true);
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newHeight = Math.max(100, Math.min(500, window.innerHeight - e.clientY));
+      setBottomPanelHeight(newHeight);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingBottomPanel(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const quickOpenFiles = openFiles.filter(file =>
+    file.name.toLowerCase().includes(quickOpenQuery.toLowerCase()) ||
+    file.path.toLowerCase().includes(quickOpenQuery.toLowerCase())
+  );
+
+
+
+
 
 
 
@@ -1695,43 +2033,458 @@ Happy coding! 🎉
     }
   };
 
-  const executeCommand = (command: string) => {
-    switch (command) {
-      case 'Save File':
-        saveCurrentFile();
+  const executeCommand = (commandId: string) => {
+    switch (commandId) {
+      case 'save-file':
+        if (currentFile) saveFile(currentFile);
         break;
-      case 'Save All':
-        saveAllFiles();
+      case 'save-all':
+        openFiles.forEach(file => saveFile(file));
+        showNotification('All files saved!', 'success');
         break;
-      case 'New File':
+      case 'new-file':
         createNewFile();
         break;
-      case 'Toggle Sidebar':
+      case 'open-file':
+        document.getElementById('file-upload')?.click();
+        break;
+      case 'close-file':
+        if (currentFile) closeFile(currentFile.id);
+        break;
+      case 'close-all':
+        closeAllFiles();
+        break;
+      case 'toggle-sidebar':
         setSidebarOpen(!sidebarOpen);
         break;
-      case 'Toggle Bottom Panel':
+      case 'toggle-bottom-panel':
         setBottomPanelOpen(!bottomPanelOpen);
         break;
-      case 'Find':
-        setSearchOpen(true);
+      case 'toggle-preview':
+        setShowPreview(!showPreview);
         break;
-      case 'Settings':
-        setSettingsOpen(true);
+      case 'zoom-in':
+        setZoomLevel(prev => Math.min(prev + 0.1, 3));
+        break;
+      case 'zoom-out':
+        setZoomLevel(prev => Math.max(prev - 0.1, 0.5));
+        break;
+      case 'reset-zoom':
+        setZoomLevel(1);
+        break;
+      case 'find':
+        setFindReplaceOpen(true);
+        break;
+      case 'find-replace':
+        setFindReplaceOpen(true);
+        break;
+      case 'find-in-files':
+        setActiveView('search');
+        setSidebarOpen(true);
+        break;
+      case 'go-to-line':
+        showGoToLineDialog();
+        break;
+      case 'format-document':
+        formatCode();
+        break;
+      case 'toggle-word-wrap':
+        setEditorSettings(prev => ({ ...prev, wordWrap: !prev.wordWrap }));
+        break;
+      case 'toggle-minimap':
+        toggleMinimap();
+        break;
+      case 'select-all':
+        if (editorRef.current) {
+          editorRef.current.trigger('keyboard', 'editor.action.selectAll', {});
+        }
+        break;
+      case 'copy-line':
+        if (editorRef.current) {
+          editorRef.current.trigger('keyboard', 'editor.action.copyLinesDownAction', {});
+        }
+        break;
+      case 'delete-line':
+        if (editorRef.current) {
+          editorRef.current.trigger('keyboard', 'editor.action.deleteLines', {});
+        }
+        break;
+      case 'new-terminal':
+        setActiveBottomTab('terminal');
+        setBottomPanelOpen(true);
+        break;
+      case 'clear-terminal':
+        setTerminalOutput(['Welcome to CloudIDE+ Terminal']);
+        break;
+      case 'settings':
+        setWorkspaceSettingsOpen(true);
+        break;
+      case 'keyboard-shortcuts':
+        setKeyboardShortcutsVisible(true);
+        break;
+      case 'toggle-theme':
+        setThemePickerOpen(true);
+        break;
+      case 'quick-open':
+        setQuickOpenVisible(true);
+        break;
+      case 'git-commit':
+        showNotification('Git commit functionality coming soon!', 'info');
+        break;
+      case 'git-push':
+        showNotification('Git push functionality coming soon!', 'info');
+        break;
+      case 'git-pull':
+        showNotification('Git pull functionality coming soon!', 'info');
+        break;
+      case 'start-debugging':
+        showNotification('Debug functionality coming soon!', 'info');
+        break;
+      case 'stop-debugging':
+        showNotification('Debug functionality coming soon!', 'info');
         break;
       default:
-        console.log('Unknown command:', command);
+        console.log('Unknown command:', commandId);
+        showNotification(`Command "${commandId}" not implemented`, 'warning');
     }
     setCommandPaletteOpen(false);
+    setCommandQuery('');
+  };
+
+  const themes = [
+    // Dark Themes
+    {
+      id: 'vs-dark',
+      name: 'Dark+ (default dark)',
+      description: 'Dark theme with syntax highlighting',
+      type: 'dark'
+    },
+    {
+      id: 'monokai',
+      name: 'Monokai',
+      description: 'Monokai color scheme',
+      type: 'dark'
+    },
+    {
+      id: 'github-dark',
+      name: 'GitHub Dark',
+      description: 'GitHub inspired dark theme',
+      type: 'dark'
+    },
+    {
+      id: 'dracula',
+      name: 'Dracula',
+      description: 'Dark theme with vibrant colors',
+      type: 'dark'
+    },
+    {
+      id: 'nord',
+      name: 'Nord',
+      description: 'Arctic themed dark color palette',
+      type: 'dark'
+    },
+    {
+      id: 'material-dark',
+      name: 'Material Dark',
+      description: 'Material Design dark theme',
+      type: 'dark'
+    },
+    {
+      id: 'one-dark-pro',
+      name: 'One Dark Pro',
+      description: 'Atom One Dark theme',
+      type: 'dark'
+    },
+    {
+      id: 'cobalt2',
+      name: 'Cobalt2',
+      description: 'Blue themed dark color scheme',
+      type: 'dark'
+    },
+
+    // Light Themes
+    {
+      id: 'vs',
+      name: 'Light+ (default light)',
+      description: 'Light theme with syntax highlighting',
+      type: 'light'
+    },
+    {
+      id: 'github-light',
+      name: 'GitHub Light',
+      description: 'GitHub inspired light theme',
+      type: 'light'
+    },
+    {
+      id: 'solarized-light',
+      name: 'Solarized Light',
+      description: 'Precision colors for machines and people',
+      type: 'light'
+    },
+    {
+      id: 'material-light',
+      name: 'Material Light',
+      description: 'Material Design light theme',
+      type: 'light'
+    },
+    {
+      id: 'quiet-light',
+      name: 'Quiet Light',
+      description: 'A soft, muted light theme',
+      type: 'light'
+    },
+    {
+      id: 'winter-is-coming-light',
+      name: 'Winter is Coming (Light)',
+      description: 'Light variant of Winter is Coming theme',
+      type: 'light'
+    },
+
+    // High Contrast Themes
+    {
+      id: 'hc-black',
+      name: 'High Contrast',
+      description: 'High contrast dark theme for better accessibility',
+      type: 'hc-dark'
+    },
+    {
+      id: 'hc-light',
+      name: 'High Contrast Light',
+      description: 'High contrast light theme for better accessibility',
+      type: 'hc-light'
+    }
+  ];
+
+  const changeTheme = (themeId: string) => {
+    setCurrentThemeId(themeId);
+    setEditorSettings(prev => ({ ...prev, theme: themeId }));
+    setThemePickerOpen(false);
+
+    // Apply theme to document body for UI theming
+    document.body.className = document.body.className.replace(/theme-[\w-]+/g, '');
+    document.body.classList.add(`theme-${themeId}`);
+
+    showNotification(`Theme changed to ${themes.find(t => t.id === themeId)?.name}`, 'success');
   };
 
   const commands = [
-    'Save File',
-    'Save All',
-    'New File',
-    'Toggle Sidebar',
-    'Toggle Bottom Panel',
-    'Find',
-    'Settings'
+    {
+      id: 'save-file',
+      label: 'File: Save',
+      icon: '💾',
+      keybinding: 'Ctrl+S',
+      category: 'File'
+    },
+    {
+      id: 'save-all',
+      label: 'File: Save All',
+      icon: '💾',
+      keybinding: 'Ctrl+K S',
+      category: 'File'
+    },
+    {
+      id: 'new-file',
+      label: 'File: New File',
+      icon: '📄',
+      keybinding: 'Ctrl+N',
+      category: 'File'
+    },
+    {
+      id: 'open-file',
+      label: 'File: Open File',
+      icon: '📂',
+      keybinding: 'Ctrl+O',
+      category: 'File'
+    },
+    {
+      id: 'close-file',
+      label: 'File: Close',
+      icon: '❌',
+      keybinding: 'Ctrl+W',
+      category: 'File'
+    },
+    {
+      id: 'toggle-sidebar',
+      label: 'View: Toggle Sidebar Visibility',
+      icon: '📁',
+      keybinding: 'Ctrl+B',
+      category: 'View'
+    },
+    {
+      id: 'toggle-bottom-panel',
+      label: 'View: Toggle Panel',
+      icon: '📋',
+      keybinding: 'Ctrl+J',
+      category: 'View'
+    },
+    {
+      id: 'find',
+      label: 'Find',
+      icon: '🔍',
+      keybinding: 'Ctrl+F',
+      category: 'Edit'
+    },
+    {
+      id: 'find-replace',
+      label: 'Replace',
+      icon: '🔄',
+      keybinding: 'Ctrl+H',
+      category: 'Edit'
+    },
+    {
+      id: 'find-in-files',
+      label: 'Search: Find in Files',
+      icon: '🔍',
+      keybinding: 'Ctrl+Shift+F',
+      category: 'Search'
+    },
+    {
+      id: 'quick-open',
+      label: 'Go to File...',
+      icon: '📁',
+      keybinding: 'Ctrl+P',
+      category: 'Go'
+    },
+    {
+      id: 'go-to-line',
+      label: 'Go to Line...',
+      icon: '📍',
+      keybinding: 'Ctrl+G',
+      category: 'Go'
+    },
+    {
+      id: 'format-document',
+      label: 'Format Document',
+      icon: '🎨',
+      keybinding: 'Shift+Alt+F',
+      category: 'Edit'
+    },
+    {
+      id: 'toggle-word-wrap',
+      label: 'View: Toggle Word Wrap',
+      icon: '📝',
+      keybinding: 'Alt+Z',
+      category: 'View'
+    },
+    {
+      id: 'toggle-minimap',
+      label: 'View: Toggle Minimap',
+      icon: '🗺️',
+      keybinding: '',
+      category: 'View'
+    },
+    {
+      id: 'settings',
+      label: 'Preferences: Open Settings',
+      icon: '⚙️',
+      keybinding: 'Ctrl+,',
+      category: 'Preferences'
+    },
+    {
+      id: 'keyboard-shortcuts',
+      label: 'Preferences: Open Keyboard Shortcuts',
+      icon: '⌨️',
+      keybinding: 'Ctrl+K Ctrl+S',
+      category: 'Preferences'
+    },
+    {
+      id: 'toggle-theme',
+      label: 'Preferences: Color Theme',
+      icon: '🌙',
+      keybinding: 'Ctrl+K Ctrl+T',
+      category: 'Preferences'
+    },
+    {
+      id: 'zoom-in',
+      label: 'View: Zoom In',
+      icon: '🔍',
+      keybinding: 'Ctrl+=',
+      category: 'View'
+    },
+    {
+      id: 'zoom-out',
+      label: 'View: Zoom Out',
+      icon: '🔍',
+      keybinding: 'Ctrl+-',
+      category: 'View'
+    },
+    {
+      id: 'reset-zoom',
+      label: 'View: Reset Zoom',
+      icon: '🔍',
+      keybinding: 'Ctrl+0',
+      category: 'View'
+    },
+    {
+      id: 'new-terminal',
+      label: 'Terminal: Create New Terminal',
+      icon: '💻',
+      keybinding: 'Ctrl+Shift+`',
+      category: 'Terminal'
+    },
+    {
+      id: 'clear-terminal',
+      label: 'Terminal: Clear',
+      icon: '🗑️',
+      keybinding: '',
+      category: 'Terminal'
+    },
+    {
+      id: 'select-all',
+      label: 'Select All',
+      icon: '📄',
+      keybinding: 'Ctrl+A',
+      category: 'Edit'
+    },
+    {
+      id: 'copy-line',
+      label: 'Copy Line Down',
+      icon: '📋',
+      keybinding: 'Shift+Alt+Down',
+      category: 'Edit'
+    },
+    {
+      id: 'delete-line',
+      label: 'Delete Line',
+      icon: '🗑️',
+      keybinding: 'Ctrl+Shift+K',
+      category: 'Edit'
+    },
+    {
+      id: 'git-commit',
+      label: 'Git: Commit',
+      icon: '✅',
+      keybinding: '',
+      category: 'Git'
+    },
+    {
+      id: 'git-push',
+      label: 'Git: Push',
+      icon: '⬆️',
+      keybinding: '',
+      category: 'Git'
+    },
+    {
+      id: 'git-pull',
+      label: 'Git: Pull',
+      icon: '⬇️',
+      keybinding: '',
+      category: 'Git'
+    },
+    {
+      id: 'start-debugging',
+      label: 'Debug: Start Debugging',
+      icon: '🐛',
+      keybinding: 'F5',
+      category: 'Debug'
+    },
+    {
+      id: 'stop-debugging',
+      label: 'Debug: Stop',
+      icon: '⏹️',
+      keybinding: 'Shift+F5',
+      category: 'Debug'
+    }
   ];
 
   const closeFile = (fileId: string) => {
@@ -1830,14 +2583,14 @@ Happy coding! 🎉
               📄 New File ▼
             </button>
             <div className="dropdown-menu">
-              <button onClick={() => createNewFile('index.html', 'html')}>HTML File</button>
-              <button onClick={() => createNewFile('style.css', 'css')}>CSS File</button>
-              <button onClick={() => createNewFile('script.js', 'javascript')}>JavaScript File</button>
-              <button onClick={() => createNewFile('app.ts', 'typescript')}>TypeScript File</button>
-              <button onClick={() => createNewFile('main.py', 'python')}>Python File</button>
-              <button onClick={() => createNewFile('Main.java', 'java')}>Java File</button>
-              <button onClick={() => createNewFile('main.cpp', 'cpp')}>C++ File</button>
-              <button onClick={() => createNewFile('README.md', 'markdown')}>Markdown File</button>
+              <button onClick={() => createNewFile()}>HTML File</button>
+              <button onClick={() => createNewFile()}>CSS File</button>
+              <button onClick={() => createNewFile()}>JavaScript File</button>
+              <button onClick={() => createNewFile()}>TypeScript File</button>
+              <button onClick={() => createNewFile()}>Python File</button>
+              <button onClick={() => createNewFile()}>Java File</button>
+              <button onClick={() => createNewFile()}>C++ File</button>
+              <button onClick={() => createNewFile()}>Markdown File</button>
               <button onClick={() => createNewFile()}>Plain Text</button>
             </div>
           </div>
@@ -1845,29 +2598,25 @@ Happy coding! 🎉
             📁 Open
           </button>
           <button
-            className={`header-button ${isSaving ? 'saving' : ''}`}
-            onClick={saveCurrentFile}
-            disabled={!currentFile?.isDirty || isSaving}
+            className="header-button"
+            onClick={() => console.log('Save file')}
             title="Save current file (Ctrl+S)"
           >
-            {isSaving ? '💾 Saving...' : '💾 Save'}
+            💾 Save
           </button>
           <button
             className="header-button"
-            onClick={saveAllFiles}
-            disabled={!openFiles.some(f => f.isDirty)}
+            onClick={() => console.log('Save all files')}
             title="Save all files"
           >
-            💾 Save All
-          Save All
-        </button>
+          💾 Save All
+          </button>
         <button
-          className={`header-button ${isFormatting ? 'formatting' : ''}`}
-          onClick={formatCode}
-          disabled={!currentFile || isFormatting}
+          className="header-button"
+          onClick={() => console.log('Format code')}
           title="Format Document (Shift+Alt+F)"
         >
-          {isFormatting ? '⏳ Formatting...' : '🎨 Format'}
+          🎨 Format
         </button>
         <button
           className="header-button"
@@ -1884,10 +2633,12 @@ Happy coding! 🎉
           <span className="problem-count warning">{codeIssues.filter(i => i.type === 'warning').length}</span>
           <span className="problem-count info">{codeIssues.filter(i => i.type === 'info').length}</span>
         </div>
-        <span className="user-info">{user?.name}</span>
-        <button className="header-button" onClick={handleLogout}>
-          Logout
-        </button>
+        <div className="user-section">
+          <span className="user-info">Demo User</span>
+          <button className="header-button" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
       </div>
       </header>
 
@@ -1942,6 +2693,19 @@ Happy coding! 🎉
               🧩
             </button>
             <button
+              className={`activity-item ${activeView === 'outline' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveView('outline');
+                setSidebarOpen(true);
+                if (currentFile) {
+                  generateOutline(currentFile.content, currentFile.language);
+                }
+              }}
+              title="Outline"
+            >
+              📋
+            </button>
+            <button
               className="activity-item"
               onClick={() => setShowProblems(!showProblems)}
               title="Problems"
@@ -1969,7 +2733,7 @@ Happy coding! 🎉
 
         {/* Sidebar */}
         {sidebarOpen && (
-          <aside className="sidebar">
+          <aside className="sidebar" style={{ width: sidebarWidth }}>
             {activeView === 'explorer' && (
               <>
                 <div className="sidebar-header">
@@ -2202,7 +2966,70 @@ Happy coding! 🎉
                 </div>
               </>
             )}
+
+            {activeView === 'outline' && (
+              <>
+                <div className="sidebar-header">
+                  <h3>Outline</h3>
+                  <div className="sidebar-actions">
+                    <button
+                      className="sidebar-action"
+                      title="Refresh Outline"
+                      onClick={() => currentFile && generateOutline(currentFile.content, currentFile.language)}
+                    >
+                      🔄
+                    </button>
+                  </div>
+                </div>
+                <div className="sidebar-content">
+                  <div className="outline-section">
+                    {currentFile ? (
+                      outlineItems.length > 0 ? (
+                        <div className="outline-items">
+                          {outlineItems.map((item, index) => (
+                            <div
+                              key={index}
+                              className={`outline-item ${item.type}`}
+                              onClick={() => navigateToOutlineItem(item)}
+                              title={`Go to line ${item.line}`}
+                            >
+                              <span className="outline-icon">
+                                {item.type === 'function' ? '🔧' :
+                                 item.type === 'class' ? '📦' :
+                                 item.type === 'interface' ? '🔗' :
+                                 item.type.startsWith('h') ? '📑' :
+                                 item.type === 'selector' ? '🎨' :
+                                 item.type === 'id' ? '🏷️' : '📄'}
+                              </span>
+                              <span className="outline-name">{item.name}</span>
+                              <span className="outline-line">:{item.line}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="no-outline">
+                          <p>No symbols found in current file</p>
+                          <small>Supported: JS/TS functions, classes, interfaces; HTML headers, IDs; CSS selectors</small>
+                        </div>
+                      )
+                    ) : (
+                      <div className="no-outline">
+                        <p>Open a file to see its outline</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </aside>
+        )}
+
+        {/* Sidebar Resize Handle */}
+        {sidebarOpen && (
+          <div
+            className="resize-handle resize-handle-vertical"
+            onMouseDown={handleSidebarResize}
+          />
         )}
 
         {/* Main Content */}
@@ -2256,6 +3083,27 @@ Happy coding! 🎉
 
             {/* Split Editor Container */}
             <div className="editor-container">
+              {/* Breadcrumbs */}
+              {currentFile && (
+                <div className="breadcrumbs">
+                  <div className="breadcrumb-content">
+                    {breadcrumbs.map((crumb, index) => (
+                      <span key={index} className="breadcrumb-item">
+                        {index > 0 && <span className="breadcrumb-separator">›</span>}
+                        <button
+                          className="breadcrumb-button"
+                          onClick={() => navigateTo(crumb.path)}
+                          title={crumb.path}
+                        >
+                          {getFileIcon(crumb.name, crumb.type === 'folder')}
+                          <span className="breadcrumb-text">{crumb.name}</span>
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Main Editor */}
               <div className="editor-pane" style={{ width: showPreview ? '50%' : '100%' }}>
                 {currentFile ? (
@@ -2265,7 +3113,13 @@ Happy coding! 🎉
                       <span className="breadcrumb-icon">📁</span>
                       {breadcrumbs.map((crumb, index) => (
                         <React.Fragment key={index}>
-                          <span className="breadcrumb-item">{crumb.name}</span>
+                          <span
+                            className="breadcrumb-item clickable"
+                            onClick={() => navigateToBreadcrumb(crumb)}
+                            title={`Navigate to ${crumb.path}`}
+                          >
+                            {crumb.name}
+                          </span>
                           {index < breadcrumbs.length - 1 && <span className="breadcrumb-separator">▶</span>}
                         </React.Fragment>
                       ))}
@@ -2286,7 +3140,7 @@ Happy coding! 🎉
                         onMount={onEditorMount}
                         options={{
                           minimap: { enabled: editorSettings.minimap },
-                          fontSize: editorSettings.fontSize,
+                          fontSize: editorSettings.fontSize * zoomLevel,
                           fontFamily: editorSettings.fontFamily,
                           fontLigatures: true,
                           lineNumbers: editorSettings.lineNumbers ? 'on' : 'off',
@@ -2320,7 +3174,12 @@ Happy coding! 🎉
                             showProperties: editorSettings.quickSuggestions,
                             showUnits: editorSettings.quickSuggestions,
                             showValues: editorSettings.quickSuggestions,
-                            showEnums: editorSettings.quickSuggestions
+                            showEnums: editorSettings.quickSuggestions,
+                            showInterfaces: editorSettings.quickSuggestions,
+                            showStructs: editorSettings.quickSuggestions,
+                            showEvents: editorSettings.quickSuggestions,
+                            showOperators: editorSettings.quickSuggestions,
+                            showTypeParameters: editorSettings.quickSuggestions
                           },
                           quickSuggestions: editorSettings.quickSuggestions ? {
                             other: true,
@@ -2335,6 +3194,9 @@ Happy coding! 🎉
                           parameterHints: { enabled: editorSettings.parameterHints },
                           autoClosingBrackets: editorSettings.autoClosingBrackets ? 'always' : 'never',
                           autoClosingQuotes: editorSettings.autoClosingQuotes ? 'always' : 'never',
+                          autoClosingDelete: 'always',
+                          autoClosingOvertype: 'always',
+                          autoSurround: 'languageDefined',
                           autoIndent: 'full',
                           formatOnPaste: editorSettings.formatOnPaste,
                           formatOnType: editorSettings.formatOnType,
@@ -2342,24 +3204,37 @@ Happy coding! 🎉
                           links: true,
                           colorDecorators: true,
                           lightbulb: { enabled: true },
-
+                          codeActionsOnSave: {
+                            'source.organizeImports': true,
+                            'source.fixAll': true
+                          },
                           matchBrackets: 'always',
                           glyphMargin: true,
                           lineDecorationsWidth: 10,
                           lineNumbersMinChars: 3,
+                          showFoldingControls: 'mouseover',
+                          foldingStrategy: 'indentation',
+                          showUnused: true,
+                          occurrencesHighlight: true,
+                          selectionHighlight: true,
+                          wordHighlight: true,
                           scrollbar: {
                             useShadows: false,
                             verticalHasArrows: true,
                             horizontalHasArrows: true,
                             verticalScrollbarSize: 14,
-                            horizontalScrollbarSize: 14
+                            horizontalScrollbarSize: 14,
+                            arrowSize: 11
                           },
+                          overviewRulerBorder: false,
+                          hideCursorInOverviewRuler: true,
                           mouseWheelZoom: editorSettings.mouseWheelZoom,
                           contextmenu: true,
                           copyWithSyntaxHighlighting: true,
                           multiCursorModifier: 'alt',
                           multiCursorMergeOverlapping: true,
                           selectOnLineNumbers: true,
+                          selectionClipboard: false,
                           find: {
                             seedSearchStringFromSelection: 'selection',
                             autoFindInSelection: 'multiline'
@@ -2451,6 +3326,14 @@ Happy coding! 🎉
           </div>
         </main>
       </div>
+
+      {/* Bottom Panel Resize Handle */}
+      {bottomPanelOpen && (
+        <div
+          className="resize-handle resize-handle-horizontal"
+          onMouseDown={handleBottomPanelResize}
+        />
+      )}
 
       {/* Bottom Panel */}
       {bottomPanelOpen && (
@@ -2550,14 +3433,14 @@ Happy coding! 🎉
                   <div className="problems-actions">
                     <button
                       className="problems-action"
-                      onClick={() => currentFile && setCodeIssues(lintCode(currentFile))}
+                      onClick={() => initializeProblems()}
                       title="Refresh"
                     >
                       🔄
                     </button>
                     <button
                       className="problems-action"
-                      onClick={() => setCodeIssues([])}
+                      onClick={() => setProblems([])}
                       title="Clear All"
                     >
                       🗑️
@@ -2568,44 +3451,44 @@ Happy coding! 🎉
                   <div className="problem-stats">
                     <span className="stat-item error">
                       <span className="stat-icon">🔴</span>
-                      <span>{codeIssues.filter(i => i.type === 'error').length} Errors</span>
+                      <span>{problems.filter(p => p.severity === 'error').length} Errors</span>
                     </span>
                     <span className="stat-item warning">
                       <span className="stat-icon">🟡</span>
-                      <span>{codeIssues.filter(i => i.type === 'warning').length} Warnings</span>
+                      <span>{problems.filter(p => p.severity === 'warning').length} Warnings</span>
                     </span>
                     <span className="stat-item info">
                       <span className="stat-icon">🔵</span>
-                      <span>{codeIssues.filter(i => i.type === 'info').length} Info</span>
+                      <span>{problems.filter(p => p.severity === 'info').length} Info</span>
                     </span>
                   </div>
-                  {codeIssues.length === 0 ? (
+                  {problems.length === 0 ? (
                     <div className="no-problems">✅ No problems detected in workspace</div>
                   ) : (
                     <div className="problems-list">
-                      {codeIssues.map(issue => (
+                      {problems.map(problem => (
                         <div
-                          key={issue.id}
-                          className={`problem-item ${issue.type}`}
-                          onClick={() => {
-                            if (editorRef.current) {
-                              editorRef.current.revealLineInCenter(issue.line);
-                              editorRef.current.setPosition({ lineNumber: issue.line, column: issue.column });
-                              editorRef.current.focus();
-                            }
-                          }}
+                          key={problem.id}
+                          className={`problem-item ${problem.severity}`}
+                          onClick={() => navigateToProblem(problem)}
+                          title={`Click to navigate to ${problem.file}:${problem.line}`}
                         >
                           <div className="problem-icon">
-                            {issue.type === 'error' ? '🔴' : issue.type === 'warning' ? '🟡' : '🔵'}
+                            {problem.severity === 'error' ? '🔴' : problem.severity === 'warning' ? '🟡' : '🔵'}
                           </div>
                           <div className="problem-details">
-                            <div className="problem-message">{issue.message}</div>
+                            <div className="problem-message">{problem.message}</div>
                             <div className="problem-location">
-                              {currentFile?.name} [{issue.line}, {issue.column}] - {issue.source}
+                              {problem.file}:{problem.line}:{problem.column} - {problem.source}
                             </div>
                           </div>
                           <div className="problem-actions">
-                            {getCodeActions(issue).map((action, index) => (
+                            {getCodeActions({
+                              ...problem,
+                              type: problem.severity,
+                              id: `${problem.severity}-${problem.line}`,
+                              severity: problem.severity === 'error' ? 2 : problem.severity === 'warning' ? 1 : 0
+                            }).map((action, index) => (
                               <button
                                 key={index}
                                 className="problem-fix"
@@ -2681,65 +3564,297 @@ Happy coding! 🎉
         </div>
       )}
 
-      {/* Status Bar */}
+      {/* Enhanced Status Bar */}
       <footer className="status-bar">
         <div className="status-left">
-          <span>Ready</span>
-          <span>🔧 CloudIDE+</span>
+          <span className="status-indicator">
+            {isSaving ? (
+              <>📤 Saving...</>
+            ) : isFormatting ? (
+              <>🎨 Formatting...</>
+            ) : (
+              <>✅ Ready</>
+            )}
+          </span>
+
+          <span className="branch-info clickable" onClick={() => setActiveView('git')}>
+            🌿 main
+          </span>
+
+          <span className="sync-indicator clickable" title="Sync Changes">
+            🔄 0↓ 0↑
+          </span>
+
+          {problems.length > 0 && (
+            <span className="status-problems clickable" onClick={() => setActiveBottomTab('problems')}>
+              {problems.filter(p => p.severity === 'error').length > 0 ? (
+                <>❌ {problems.filter(p => p.severity === 'error').length}</>
+              ) : null}
+              {problems.filter(p => p.severity === 'warning').length > 0 ? (
+                <>⚠️ {problems.filter(p => p.severity === 'warning').length}</>
+              ) : null}
+              {problems.filter(p => p.severity === 'info').length > 0 ? (
+                <>ℹ️ {problems.filter(p => p.severity === 'info').length}</>
+              ) : null}
+            </span>
+          )}
+
+          <span className="zoom-controls">
+            <button
+              className="zoom-btn"
+              onClick={() => setZoomLevel(prev => Math.max(prev - 0.1, 0.5))}
+              title="Zoom Out"
+            >
+              🔍-
+            </button>
+            <span className="zoom-level clickable" onClick={() => setZoomLevel(1)}>
+              {Math.round(zoomLevel * 100)}%
+            </span>
+            <button
+              className="zoom-btn"
+              onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 3))}
+              title="Zoom In"
+            >
+              🔍+
+            </button>
+          </span>
+
           {currentFile && (
             <>
-              <span>📄 {currentFile.name}</span>
-              <span>Ln {statusBarInfo.line}, Col {statusBarInfo.column}</span>
-              {statusBarInfo.selection && <span>{statusBarInfo.selection}</span>}
+              <span className="file-info">
+                {getFileIcon(currentFile.name)} {currentFile.name}
+                {currentFile.isDirty && <span className="unsaved-indicator">●</span>}
+              </span>
+              <span className="cursor-position clickable" onClick={() => showGoToLineDialog()}>
+                Ln {statusBarInfo.line}, Col {statusBarInfo.column}
+              </span>
+              {statusBarInfo.selection && (
+                <span className="selection-info">
+                  {statusBarInfo.selection}
+                </span>
+              )}
             </>
           )}
         </div>
+
         <div className="status-right">
-          <span className="clickable" onClick={() => setWorkspaceSettingsOpen(true)}>
+          <span className="live-share clickable" title="Live Share">
+            👥 Share
+          </span>
+
+          <span className="notifications clickable" onClick={() => console.log('Show notifications')}>
+            🔔
+          </span>
+
+          <span className="encoding clickable" onClick={() => setWorkspaceSettingsOpen(true)} title="Select Encoding">
             {statusBarInfo.encoding}
           </span>
-          <span className="clickable" onClick={() => setWorkspaceSettingsOpen(true)}>
+
+          <span className="eol clickable" onClick={() => setWorkspaceSettingsOpen(true)} title="Select End of Line Sequence">
             {statusBarInfo.eol}
           </span>
-          <span className="clickable" onClick={() => setWorkspaceSettingsOpen(true)}>
-            Spaces: {statusBarInfo.spaces}
+
+          <span className="indentation clickable" onClick={() => setWorkspaceSettingsOpen(true)} title="Select Indentation">
+            {statusBarInfo.spaces === 2 ? 'Spaces: 2' : statusBarInfo.spaces === 4 ? 'Spaces: 4' : `Spaces: ${statusBarInfo.spaces}`}
           </span>
-          <span className="clickable" onClick={() => console.log('Language selector')}>
-            {currentFile?.language || 'Plain Text'}
+
+          <span className="language clickable" onClick={() => console.log('Language selector')} title="Select Language Mode">
+            {currentFile?.language ? (
+              <>
+                {currentFile.language === 'javascript' ? '🟨 JavaScript' :
+                 currentFile.language === 'typescript' ? '🔷 TypeScript' :
+                 currentFile.language === 'html' ? '🌐 HTML' :
+                 currentFile.language === 'css' ? '🎨 CSS' :
+                 currentFile.language === 'json' ? '📋 JSON' :
+                 currentFile.language === 'markdown' ? '📝 Markdown' :
+                 currentFile.language === 'python' ? '🐍 Python' :
+                 `📄 ${currentFile.language.toUpperCase()}`}
+              </>
+            ) : (
+              '📄 Plain Text'
+            )}
           </span>
-          <span className="clickable" onClick={() => setSettingsOpen(true)}>
-            {editorSettings.theme === 'vs-dark' ? '🌙' : '☀️'}
+
+          <span className="theme-indicator clickable" onClick={() => setThemePickerOpen(true)} title="Select Color Theme">
+            {currentThemeId === 'vs-dark' ? '🌙 Dark+' :
+             currentThemeId === 'vs' ? '☀️ Light+' :
+             currentThemeId === 'monokai' ? '🎨 Monokai' :
+             currentThemeId === 'github-dark' ? '⚫ GitHub Dark' :
+             currentThemeId === 'github-light' ? '⚪ GitHub Light' :
+             `🎨 ${themes.find(t => t.id === currentThemeId)?.name || 'Custom'}`}
           </span>
-          {problems.length > 0 && (
-            <span className="status-problems" onClick={() => setActiveBottomTab('problems')}>
-              ⚠️ {problems.filter(p => p.severity === 'error').length} errors, {problems.filter(p => p.severity === 'warning').length} warnings
-            </span>
-          )}
+
+          <span className="feedback clickable" onClick={() => showNotification('Feedback feature coming soon!', 'info')} title="Send Feedback">
+            😊
+          </span>
         </div>
       </footer>
 
-      {/* Command Palette */}
+      {/* Enhanced Command Palette */}
       {commandPaletteOpen && (
         <div className="command-palette-overlay" onClick={() => setCommandPaletteOpen(false)}>
           <div className="command-palette" onClick={(e) => e.stopPropagation()}>
-            <input
-              type="text"
-              placeholder="Type a command..."
-              autoFocus
-              onChange={() => {
-                // Filter commands based on query
-              }}
-            />
+            <div className="command-palette-header">
+              <input
+                type="text"
+                placeholder="Type a command..."
+                value={commandQuery}
+                onChange={(e) => setCommandQuery(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setCommandPaletteOpen(false);
+                  } else if (e.key === 'Enter') {
+                    const filtered = commands.filter(cmd =>
+                      cmd.label.toLowerCase().includes(commandQuery.toLowerCase())
+                    );
+                    if (filtered.length > 0) {
+                      executeCommand(filtered[0].id);
+                    }
+                  }
+                }}
+              />
+            </div>
             <div className="command-list">
-              {commands.map((command, index) => (
-                <div
-                  key={index}
-                  className="command-item"
-                  onClick={() => executeCommand(command)}
-                >
-                  {command}
+              {commands
+                .filter(cmd =>
+                  cmd.label.toLowerCase().includes(commandQuery.toLowerCase()) ||
+                  cmd.keybinding.toLowerCase().includes(commandQuery.toLowerCase())
+                )
+                .slice(0, 10)
+                .map((command, index) => (
+                  <div
+                    key={command.id}
+                    className="command-item"
+                    onClick={() => executeCommand(command.id)}
+                  >
+                    <div className="command-icon">{command.icon}</div>
+                    <div className="command-label">{command.label}</div>
+                    {command.keybinding && (
+                      <div className="command-keybinding">{command.keybinding}</div>
+                    )}
+                  </div>
+                ))}
+              {commands.filter(cmd =>
+                cmd.label.toLowerCase().includes(commandQuery.toLowerCase())
+              ).length === 0 && commandQuery && (
+                <div className="command-item no-results">
+                  <div className="command-label">No commands found</div>
                 </div>
-              ))}
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Theme Picker Modal */}
+      {themePickerOpen && (
+        <div className="modal-overlay" onClick={() => setThemePickerOpen(false)}>
+          <div className="modal theme-picker-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>🎨 Select Color Theme</h3>
+              <button className="modal-close" onClick={() => setThemePickerOpen(false)}>×</button>
+            </div>
+            <div className="modal-content">
+              <div className="theme-categories">
+                <div className="theme-category">
+                  <h4>Dark Themes</h4>
+                  <div className="theme-grid">
+                    {themes.filter(theme => theme.type === 'dark').map(theme => (
+                      <div
+                        key={theme.id}
+                        className={`theme-item ${currentThemeId === theme.id ? 'active' : ''}`}
+                        onClick={() => changeTheme(theme.id)}
+                      >
+                        <div className={`theme-preview theme-preview-${theme.id}`}>
+                          <div className="theme-preview-header"></div>
+                          <div className="theme-preview-sidebar"></div>
+                          <div className="theme-preview-editor">
+                            <div className="theme-preview-line"></div>
+                            <div className="theme-preview-line short"></div>
+                            <div className="theme-preview-line"></div>
+                          </div>
+                        </div>
+                        <div className="theme-info">
+                          <div className="theme-name">{theme.name}</div>
+                          <div className="theme-description">{theme.description}</div>
+                        </div>
+                        {currentThemeId === theme.id && (
+                          <div className="theme-active-indicator">✓</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="theme-category">
+                  <h4>Light Themes</h4>
+                  <div className="theme-grid">
+                    {themes.filter(theme => theme.type === 'light').map(theme => (
+                      <div
+                        key={theme.id}
+                        className={`theme-item ${currentThemeId === theme.id ? 'active' : ''}`}
+                        onClick={() => changeTheme(theme.id)}
+                      >
+                        <div className={`theme-preview theme-preview-${theme.id}`}>
+                          <div className="theme-preview-header"></div>
+                          <div className="theme-preview-sidebar"></div>
+                          <div className="theme-preview-editor">
+                            <div className="theme-preview-line"></div>
+                            <div className="theme-preview-line short"></div>
+                            <div className="theme-preview-line"></div>
+                          </div>
+                        </div>
+                        <div className="theme-info">
+                          <div className="theme-name">{theme.name}</div>
+                          <div className="theme-description">{theme.description}</div>
+                        </div>
+                        {currentThemeId === theme.id && (
+                          <div className="theme-active-indicator">✓</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="theme-category">
+                  <h4>High Contrast Themes</h4>
+                  <div className="theme-grid">
+                    {themes.filter(theme => theme.type.includes('hc')).map(theme => (
+                      <div
+                        key={theme.id}
+                        className={`theme-item ${currentThemeId === theme.id ? 'active' : ''}`}
+                        onClick={() => changeTheme(theme.id)}
+                      >
+                        <div className={`theme-preview theme-preview-${theme.id}`}>
+                          <div className="theme-preview-header"></div>
+                          <div className="theme-preview-sidebar"></div>
+                          <div className="theme-preview-editor">
+                            <div className="theme-preview-line"></div>
+                            <div className="theme-preview-line short"></div>
+                            <div className="theme-preview-line"></div>
+                          </div>
+                        </div>
+                        <div className="theme-info">
+                          <div className="theme-name">{theme.name}</div>
+                          <div className="theme-description">{theme.description}</div>
+                        </div>
+                        {currentThemeId === theme.id && (
+                          <div className="theme-active-indicator">✓</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setThemePickerOpen(false)}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={() => setThemePickerOpen(false)}>
+                Done
+              </button>
             </div>
           </div>
         </div>
@@ -3024,6 +4139,204 @@ Happy coding! 🎉
         </div>
       )}
 
+      {/* Quick Open Modal */}
+      {quickOpenVisible && (
+        <div className="quick-open-overlay" onClick={() => setQuickOpenVisible(false)}>
+          <div className="quick-open" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="text"
+              placeholder="Search files by name..."
+              value={quickOpenQuery}
+              onChange={(e) => setQuickOpenQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setQuickOpenVisible(false);
+                } else if (e.key === 'Enter' && quickOpenFiles.length > 0) {
+                  setCurrentFile(quickOpenFiles[0]);
+                  setQuickOpenVisible(false);
+                }
+              }}
+              autoFocus
+            />
+            <div className="quick-open-results">
+              {quickOpenFiles.map(file => (
+                <div
+                  key={file.id}
+                  className="quick-open-item"
+                  onClick={() => {
+                    setCurrentFile(file);
+                    setQuickOpenVisible(false);
+                  }}
+                >
+                  <span className="file-icon">{getFileIcon(file.name)}</span>
+                  <div className="file-info">
+                    <div className="file-name">{file.name}</div>
+                    <div className="file-path">{file.path}</div>
+                  </div>
+                </div>
+              ))}
+              {quickOpenQuery && quickOpenFiles.length === 0 && (
+                <div className="no-results">No files found</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notifications */}
+      <div className="notifications-container">
+        {notifications.map(notification => (
+          <div key={notification.id} className={`notification ${notification.type}`}>
+            <span className="notification-icon">
+              {notification.type === 'error' ? '❌' :
+               notification.type === 'warning' ? '⚠️' : 'ℹ️'}
+            </span>
+            <span className="notification-message">{notification.message}</span>
+            <button
+              className="notification-close"
+              onClick={() => setNotifications(prev => prev.filter(n => n.id !== notification.id))}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Keyboard Shortcuts Help Modal */}
+      {keyboardShortcutsVisible && (
+        <div className="modal-overlay" onClick={() => setKeyboardShortcutsVisible(false)}>
+          <div className="modal shortcuts-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>⌨️ Keyboard Shortcuts</h3>
+              <button className="modal-close" onClick={() => setKeyboardShortcutsVisible(false)}>×</button>
+            </div>
+            <div className="modal-content">
+              <div className="shortcuts-container">
+                <div className="shortcut-section">
+                  <h4>File Management</h4>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+N</span>
+                    <span className="shortcut-desc">New File</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+S</span>
+                    <span className="shortcut-desc">Save File</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+W</span>
+                    <span className="shortcut-desc">Close File</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+P</span>
+                    <span className="shortcut-desc">Quick Open</span>
+                  </div>
+                </div>
+
+                <div className="shortcut-section">
+                  <h4>Navigation</h4>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+G</span>
+                    <span className="shortcut-desc">Go to Line</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+F</span>
+                    <span className="shortcut-desc">Find</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+H</span>
+                    <span className="shortcut-desc">Replace</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+Shift+F</span>
+                    <span className="shortcut-desc">Find in Files</span>
+                  </div>
+                </div>
+
+                <div className="shortcut-section">
+                  <h4>Editor</h4>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Shift+Alt+F</span>
+                    <span className="shortcut-desc">Format Document</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+/</span>
+                    <span className="shortcut-desc">Toggle Comment</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+D</span>
+                    <span className="shortcut-desc">Add Selection to Next Find Match</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Alt+Click</span>
+                    <span className="shortcut-desc">Add Cursor</span>
+                  </div>
+                </div>
+
+                <div className="shortcut-section">
+                  <h4>Panels</h4>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+Shift+E</span>
+                    <span className="shortcut-desc">Explorer</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+Shift+G</span>
+                    <span className="shortcut-desc">Source Control</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+Shift+X</span>
+                    <span className="shortcut-desc">Extensions</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+`</span>
+                    <span className="shortcut-desc">Toggle Terminal</span>
+                  </div>
+                </div>
+
+                <div className="shortcut-section">
+                  <h4>View</h4>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+B</span>
+                    <span className="shortcut-desc">Toggle Sidebar</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+J</span>
+                    <span className="shortcut-desc">Toggle Panel</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+=</span>
+                    <span className="shortcut-desc">Zoom In</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+-</span>
+                    <span className="shortcut-desc">Zoom Out</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+0</span>
+                    <span className="shortcut-desc">Reset Zoom</span>
+                  </div>
+                </div>
+
+                <div className="shortcut-section">
+                  <h4>Help</h4>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">F1</span>
+                    <span className="shortcut-desc">Command Palette</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">F2</span>
+                    <span className="shortcut-desc">Keyboard Shortcuts</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <span className="shortcut-key">Ctrl+Shift+K</span>
+                    <span className="shortcut-desc">Keyboard Shortcuts</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Settings Modal */}
       <SettingsModal
         isOpen={settingsOpen}
@@ -3120,7 +4433,10 @@ Happy coding! 🎉
                   <h4>File Management</h4>
                   <div className="setting-row">
                     <label>Auto Save:</label>
-                    <select value={editorSettings.autoSave ? "on" : "off"}>
+                    <select
+                      value={editorSettings.autoSave ? "on" : "off"}
+                      onChange={(e) => setEditorSettings(prev => ({...prev, autoSave: e.target.value === "on"}))}
+                    >
                       <option value="off">Off</option>
                       <option value="on">After Delay</option>
                       <option value="focus">On Focus Change</option>

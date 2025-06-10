@@ -44,6 +44,25 @@ interface SearchResult {
   match: string;
 }
 
+interface CodeIssue {
+  id: string;
+  type: 'error' | 'warning' | 'info';
+  message: string;
+  line: number;
+  column: number;
+  source: string;
+  severity: number;
+}
+
+interface CodeAction {
+  title: string;
+  kind: string;
+  edit?: {
+    range: { startLine: number; endLine: number; startColumn: number; endColumn: number; };
+    newText: string;
+  };
+}
+
 interface EditorSettings {
   theme: 'vs-dark' | 'vs-light' | 'hc-black';
   fontSize: number;
@@ -91,6 +110,9 @@ const App: React.FC = () => {
   const [terminalInput, setTerminalInput] = useState('');
   const [activeView, setActiveView] = useState<'explorer' | 'search' | 'git' | 'extensions'>('explorer');
   const [dragOver, setDragOver] = useState(false);
+  const [codeIssues, setCodeIssues] = useState<CodeIssue[]>([]);
+  const [isFormatting, setIsFormatting] = useState(false);
+  const [showProblems, setShowProblems] = useState(false);
   const [editorSettings, setEditorSettings] = useState<EditorSettings>({
     theme: 'vs-dark',
     fontSize: 14,
@@ -924,6 +946,12 @@ Happy coding! 🎉
     if (currentFile?.language === 'html') {
       updatePreview(value);
     }
+
+    // Run linting
+    if (currentFile) {
+      const issues = lintCode({ ...currentFile, content: value });
+      setCodeIssues(issues);
+    }
   };
 
   const updatePreview = (htmlContent: string) => {
@@ -1203,6 +1231,188 @@ Happy coding! 🎉
     URL.revokeObjectURL(url);
   };
 
+  const formatCode = async () => {
+    if (!currentFile) return;
+
+    setIsFormatting(true);
+
+    try {
+      let formattedContent = currentFile.content;
+
+      // Simple formatting based on language
+      switch (currentFile.language) {
+        case 'javascript':
+        case 'typescript':
+          formattedContent = formatJavaScript(currentFile.content);
+          break;
+        case 'html':
+          formattedContent = formatHTML(currentFile.content);
+          break;
+        case 'css':
+          formattedContent = formatCSS(currentFile.content);
+          break;
+        case 'json':
+          try {
+            const parsed = JSON.parse(currentFile.content);
+            formattedContent = JSON.stringify(parsed, null, 2);
+          } catch {
+            // Keep original if invalid JSON
+          }
+          break;
+      }
+
+      if (formattedContent !== currentFile.content) {
+        const updatedFile = { ...currentFile, content: formattedContent, isDirty: true };
+        setCurrentFile(updatedFile);
+        setOpenFiles(files => files.map(f => f.id === updatedFile.id ? updatedFile : f));
+      }
+    } finally {
+      setIsFormatting(false);
+    }
+  };
+
+  const formatJavaScript = (code: string): string => {
+    // Basic JavaScript formatting
+    return code
+      .replace(/\s*{\s*/g, ' {\n  ')
+      .replace(/;\s*}/g, ';\n}')
+      .replace(/,\s*/g, ',\n  ')
+      .replace(/;\s*/g, ';\n')
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .join('\n');
+  };
+
+  const formatHTML = (html: string): string => {
+    // Basic HTML formatting with proper indentation
+    let formatted = html;
+    let indent = 0;
+    const tab = '  ';
+
+    formatted = formatted.replace(/></g, '>\n<');
+
+    const lines = formatted.split('\n');
+    return lines.map(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return '';
+
+      if (trimmed.startsWith('</')) {
+        indent = Math.max(0, indent - 1);
+      }
+
+      const result = tab.repeat(indent) + trimmed;
+
+      if (trimmed.startsWith('<') && !trimmed.startsWith('</') && !trimmed.endsWith('/>')) {
+        indent++;
+      }
+
+      return result;
+    }).join('\n');
+  };
+
+  const formatCSS = (css: string): string => {
+    // Basic CSS formatting
+    return css
+      .replace(/\s*{\s*/g, ' {\n  ')
+      .replace(/;\s*}/g, ';\n}')
+      .replace(/;\s*/g, ';\n  ')
+      .replace(/,\s*/g, ',\n')
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .join('\n');
+  };
+
+  const lintCode = (file: FileTab): CodeIssue[] => {
+    const issues: CodeIssue[] = [];
+    const lines = file.content.split('\n');
+
+    lines.forEach((line, index) => {
+      const lineNumber = index + 1;
+
+      // Common linting rules
+      if (line.includes('console.log') && file.language === 'javascript') {
+        issues.push({
+          id: `console-${lineNumber}`,
+          type: 'warning',
+          message: 'Avoid using console.log in production code',
+          line: lineNumber,
+          column: line.indexOf('console.log') + 1,
+          source: 'ESLint',
+          severity: 2
+        });
+      }
+
+      if (line.trim().endsWith(';') === false && line.includes('=') && file.language === 'javascript') {
+        issues.push({
+          id: `semicolon-${lineNumber}`,
+          type: 'error',
+          message: 'Missing semicolon',
+          line: lineNumber,
+          column: line.length,
+          source: 'ESLint',
+          severity: 1
+        });
+      }
+
+      if (line.includes('var ') && file.language === 'javascript') {
+        issues.push({
+          id: `var-${lineNumber}`,
+          type: 'warning',
+          message: 'Use let or const instead of var',
+          line: lineNumber,
+          column: line.indexOf('var ') + 1,
+          source: 'ESLint',
+          severity: 2
+        });
+      }
+
+      if (line.length > 120) {
+        issues.push({
+          id: `line-length-${lineNumber}`,
+          type: 'info',
+          message: 'Line exceeds maximum length of 120 characters',
+          line: lineNumber,
+          column: 121,
+          source: 'Formatter',
+          severity: 3
+        });
+      }
+    });
+
+    return issues;
+  };
+
+  const getCodeActions = (issue: CodeIssue): CodeAction[] => {
+    const actions: CodeAction[] = [];
+
+    switch (issue.id.split('-')[0]) {
+      case 'console':
+        actions.push({
+          title: 'Remove console.log',
+          kind: 'quickfix',
+          edit: {
+            range: { startLine: issue.line, endLine: issue.line, startColumn: 1, endColumn: 999 },
+            newText: ''
+          }
+        });
+        break;
+      case 'var':
+        actions.push({
+          title: 'Replace var with let',
+          kind: 'quickfix'
+        });
+        actions.push({
+          title: 'Replace var with const',
+          kind: 'quickfix'
+        });
+        break;
+    }
+
+    return actions;
+  };
+
   const createNewFolder = () => {
     const folderName = prompt('Enter folder name:');
     if (!folderName) return;
@@ -1376,14 +1586,36 @@ Happy coding! 🎉
             title="Save all files"
           >
             💾 Save All
-          </button>
+          Save All
+        </button>
+        <button
+          className={`header-button ${isFormatting ? 'formatting' : ''}`}
+          onClick={formatCode}
+          disabled={!currentFile || isFormatting}
+          title="Format Document (Shift+Alt+F)"
+        >
+          {isFormatting ? '⏳ Formatting...' : '🎨 Format'}
+        </button>
+        <button
+          className="header-button"
+          onClick={() => currentFile && setCodeIssues(lintCode(currentFile))}
+          disabled={!currentFile}
+          title="Run Linter"
+        >
+          🔍 Lint
+        </button>
+      </div>
+      <div className="header-right">
+        <div className="problems-indicator">
+          <span className="problem-count error">{codeIssues.filter(i => i.type === 'error').length}</span>
+          <span className="problem-count warning">{codeIssues.filter(i => i.type === 'warning').length}</span>
+          <span className="problem-count info">{codeIssues.filter(i => i.type === 'info').length}</span>
         </div>
-        <div className="header-right">
-          <span className="user-info">{user?.name}</span>
-          <button className="header-button" onClick={handleLogout}>
-            Logout
-          </button>
-        </div>
+        <span className="user-info">{user?.name}</span>
+        <button className="header-button" onClick={handleLogout}>
+          Logout
+        </button>
+      </div>
       </header>
 
       <div
@@ -1435,6 +1667,13 @@ Happy coding! 🎉
               title="Extensions (Ctrl+Shift+X)"
             >
               🧩
+            </button>
+            <button
+              className="activity-item"
+              onClick={() => setShowProblems(!showProblems)}
+              title="Problems"
+            >
+              🐛
             </button>
           </div>
           <div className="activity-footer">
@@ -1972,23 +2211,84 @@ Happy coding! 🎉
             )}
             {activeBottomTab === 'problems' && (
               <div className="problems-panel">
-                <div className="problems-header">Problems (0)</div>
+                <div className="problems-header">
+                  <span>Problems</span>
+                  <div className="problems-actions">
+                    <button
+                      className="problems-action"
+                      onClick={() => currentFile && setCodeIssues(lintCode(currentFile))}
+                      title="Refresh"
+                    >
+                      🔄
+                    </button>
+                    <button
+                      className="problems-action"
+                      onClick={() => setCodeIssues([])}
+                      title="Clear All"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
                 <div className="problems-content">
                   <div className="problem-stats">
-                    <span className="stat-item">
-                      <span className="stat-icon error">❌</span>
-                      <span>0 Errors</span>
+                    <span className="stat-item error">
+                      <span className="stat-icon">🔴</span>
+                      <span>{codeIssues.filter(i => i.type === 'error').length} Errors</span>
                     </span>
-                    <span className="stat-item">
-                      <span className="stat-icon warning">⚠️</span>
-                      <span>0 Warnings</span>
+                    <span className="stat-item warning">
+                      <span className="stat-icon">🟡</span>
+                      <span>{codeIssues.filter(i => i.type === 'warning').length} Warnings</span>
                     </span>
-                    <span className="stat-item">
-                      <span className="stat-icon info">ℹ️</span>
-                      <span>0 Info</span>
+                    <span className="stat-item info">
+                      <span className="stat-icon">🔵</span>
+                      <span>{codeIssues.filter(i => i.type === 'info').length} Info</span>
                     </span>
                   </div>
-                  <div className="no-problems">✅ No problems detected in workspace</div>
+                  {codeIssues.length === 0 ? (
+                    <div className="no-problems">✅ No problems detected in workspace</div>
+                  ) : (
+                    <div className="problems-list">
+                      {codeIssues.map(issue => (
+                        <div
+                          key={issue.id}
+                          className={`problem-item ${issue.type}`}
+                          onClick={() => {
+                            if (editorRef.current) {
+                              editorRef.current.revealLineInCenter(issue.line);
+                              editorRef.current.setPosition({ lineNumber: issue.line, column: issue.column });
+                              editorRef.current.focus();
+                            }
+                          }}
+                        >
+                          <div className="problem-icon">
+                            {issue.type === 'error' ? '🔴' : issue.type === 'warning' ? '🟡' : '🔵'}
+                          </div>
+                          <div className="problem-details">
+                            <div className="problem-message">{issue.message}</div>
+                            <div className="problem-location">
+                              {currentFile?.name} [{issue.line}, {issue.column}] - {issue.source}
+                            </div>
+                          </div>
+                          <div className="problem-actions">
+                            {getCodeActions(issue).map((action, index) => (
+                              <button
+                                key={index}
+                                className="problem-fix"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  console.log('Apply fix:', action.title);
+                                }}
+                                title={action.title}
+                              >
+                                🔧
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

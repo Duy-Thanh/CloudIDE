@@ -81,7 +81,6 @@ const App: React.FC = () => {
   const [editorGroups, setEditorGroups] = useState<EditorGroup[]>([
     { id: 1, files: [], activeFileId: null, width: 100 }
   ]);
-  const [activeGroupId, setActiveGroupId] = useState<number>(1);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [fileTree, setFileTree] = useState<FileTreeItem[]>([]);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -127,13 +126,11 @@ const App: React.FC = () => {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [currentSearchIndex, setCurrentSearchIndex] = useState(-1);
   const [searchMode, setSearchMode] = useState<'current' | 'project'>('current');
-  const [explorerWidth, setExplorerWidth] = useState(300);
   const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
   const [bottomPanelHeight, setBottomPanelHeight] = useState(200);
   const [activeBottomTab, setActiveBottomTab] = useState('terminal');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [breadcrumbs, setBreadcrumbs] = useState<Breadcrumb[]>([]);
-  const [miniTerminal, setMiniTerminal] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<Monaco | null>(null);
@@ -676,7 +673,7 @@ Happy coding! 🎉
     const breadcrumbList: Breadcrumb[] = [];
 
     let currentPath = '';
-    pathParts.forEach((part, index) => {
+    pathParts.forEach((part) => {
       currentPath += '/' + part;
       breadcrumbList.push({
         name: part,
@@ -792,6 +789,14 @@ Happy coding! 🎉
     // Set up auto-completion
     monaco.languages.registerCompletionItemProvider('javascript', {
       provideCompletionItems: (model, position) => {
+        const word = model.getWordUntilPosition(position);
+        const range = {
+          startLineNumber: position.lineNumber,
+          endLineNumber: position.lineNumber,
+          startColumn: word.startColumn,
+          endColumn: word.endColumn
+        };
+
         const suggestions = [
           {
             label: 'console.log',
@@ -799,6 +804,7 @@ Happy coding! 🎉
             insertText: 'console.log(${1});',
             insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
             documentation: 'Outputs a message to the console',
+            range: range,
           },
           {
             label: 'function',
@@ -806,6 +812,7 @@ Happy coding! 🎉
             insertText: 'function ${1:name}(${2:params}) {\n\t${3}\n}',
             insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
             documentation: 'Function declaration',
+            range: range,
           },
           {
             label: 'const',
@@ -813,6 +820,7 @@ Happy coding! 🎉
             insertText: 'const ${1:name} = ${2:value};',
             insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
             documentation: 'Constant declaration',
+            range: range,
           },
         ];
         return { suggestions };
@@ -940,23 +948,9 @@ Happy coding! 🎉
     }));
 
     setEditorGroups([...updatedGroups, newGroup]);
-    setActiveGroupId(newGroupId);
   };
 
-  const closeEditorGroup = (groupId: number) => {
-    if (editorGroups.length <= 1) return;
 
-    const filteredGroups = editorGroups.filter(g => g.id !== groupId);
-    const redistributedWidth = 100 / filteredGroups.length;
-
-    const updatedGroups = filteredGroups.map(group => ({
-      ...group,
-      width: redistributedWidth
-    }));
-
-    setEditorGroups(updatedGroups);
-    setActiveGroupId(updatedGroups[0].id);
-  };
 
   const executeTerminalCommand = (command: string) => {
     const trimmedCommand = command.trim();
@@ -1462,7 +1456,7 @@ Happy coding! 🎉
                 <div className="sidebar-header">
                   <h3>Explorer</h3>
                   <div className="sidebar-actions">
-                    <button className="sidebar-action" title="New File" onClick={createNewFile}>📄</button>
+                    <button className="sidebar-action" title="New File" onClick={() => createNewFile()}>📄</button>
                     <button className="sidebar-action" title="New Folder" onClick={createNewFolder}>📁</button>
                     <button className="sidebar-action" title="Upload File" onClick={() => document.getElementById('file-upload')?.click()}>📤</button>
                     <button className="sidebar-action" title="Refresh">🔄</button>
@@ -1648,9 +1642,8 @@ Happy coding! 🎉
 
         {/* Main Content */}
         <main className="main-content">
-          {/* File Tabs */}
           {/* Editor Area */}
-          <main className="editor-area">
+          <div className="editor-area">
             {/* Tab Bar */}
             {openFiles.length > 0 && (
               <div className="tab-bar">
@@ -1783,9 +1776,7 @@ Happy coding! 🎉
                           links: true,
                           colorDecorators: true,
                           lightbulb: { enabled: true },
-                          codeActionsOnSave: {
-                            'source.fixAll': true
-                          },
+
                           matchBrackets: 'always',
                           glyphMargin: true,
                           lineDecorationsWidth: 10,
@@ -1812,7 +1803,7 @@ Happy coding! 🎉
                       <p>A powerful, cloud-based development environment</p>
 
                       <div className="welcome-actions">
-                        <button className="welcome-button" onClick={createNewFile}>
+                        <button className="welcome-button" onClick={() => createNewFile()}>
                           📄 New File
                         </button>
                         <button className="welcome-button" onClick={() => document.getElementById('file-upload')?.click()}>
@@ -1826,11 +1817,11 @@ Happy coding! 🎉
                       <div className="recent-section">
                         <h3>Recent</h3>
                         <div className="recent-items">
-                          <div className="recent-item" onClick={() => openFile(fileTree[0]?.children?.[0]?.children?.[0])}>
+                          <div className="recent-item" onClick={() => fileTree[0]?.children?.[0]?.children?.[0] && openFile(fileTree[0].children[0].children[0])}>
                             <span className="recent-icon">📄</span>
                             <span>index.html</span>
                           </div>
-                          <div className="recent-item" onClick={() => openFile(fileTree[0]?.children?.[0]?.children?.[1])}>
+                          <div className="recent-item" onClick={() => fileTree[0]?.children?.[0]?.children?.[1] && openFile(fileTree[0].children[0].children[1])}>
                             <span className="recent-icon">🎨</span>
                             <span>style.css</span>
                           </div>
@@ -1884,7 +1875,8 @@ Happy coding! 🎉
                 </div>
               )}
             </div>
-          </main>
+          </div>
+        </main>
       </div>
 
       {/* Bottom Panel */}
@@ -2084,8 +2076,7 @@ Happy coding! 🎉
               type="text"
               placeholder="Type a command..."
               autoFocus
-              onChange={(e) => {
-                const query = e.target.value.toLowerCase();
+              onChange={() => {
                 // Filter commands based on query
               }}
             />

@@ -1,0 +1,200 @@
+# CloudIDE+ Code Server Dockerfile
+# Based on Ubuntu 22.04 with code-server and CloudIDE+ extensions
+
+FROM ubuntu:22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV CODE_SERVER_VERSION=4.20.0
+ENV NODE_VERSION=20
+ENV PYTHON_VERSION=3.11
+ENV DOCKER_VERSION=24.0.7
+ENV KUBECTL_VERSION=1.28.4
+ENV TERRAFORM_VERSION=1.6.5
+
+# Create user
+ARG USER=coder
+ARG UID=1000
+ARG GID=1000
+RUN groupadd -g ${GID} ${USER} && \
+    useradd -m -u ${UID} -g ${GID} -s /bin/bash ${USER} && \
+    echo "${USER} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    build-essential \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    software-properties-common \
+    python3 \
+    python3-pip \
+    python3-venv \
+    golang-go \
+    openjdk-17-jdk \
+    postgresql-client \
+    redis-tools \
+    vim \
+    nano \
+    htop \
+    tree \
+    zip \
+    unzip \
+    jq \
+    yq \
+    sqlite3 \
+    nginx \
+    supervisor \
+    ssh \
+    rsync \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js and npm
+RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - && \
+    apt-get install -y nodejs
+
+# Install Docker
+RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+    apt-get update && \
+    apt-get install -y docker-ce-cli=${DOCKER_VERSION}* && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install kubectl
+RUN curl -LO "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl" && \
+    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
+    rm kubectl
+
+# Install Terraform
+RUN wget https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip && \
+    unzip terraform_${TERRAFORM_VERSION}_linux_amd64.zip && \
+    mv terraform /usr/local/bin/ && \
+    rm terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+
+# Install Google Cloud SDK
+RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add - && \
+    apt-get update && \
+    apt-get install -y google-cloud-cli google-cloud-cli-gke-gcloud-auth-plugin && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Firebase CLI
+RUN npm install -g firebase-tools
+
+# Install Vercel CLI
+RUN npm install -g vercel
+
+# Install Netlify CLI
+RUN npm install -g netlify-cli
+
+# Install other useful tools
+RUN npm install -g \
+    @vue/cli \
+    @angular/cli \
+    create-react-app \
+    typescript \
+    ts-node \
+    nodemon \
+    pm2 \
+    eslint \
+    prettier \
+    webpack \
+    vite \
+    @cloudflare/wrangler
+
+# Install Python packages
+RUN pip3 install --no-cache-dir \
+    requests \
+    fastapi \
+    uvicorn \
+    flask \
+    django \
+    pandas \
+    numpy \
+    jupyter \
+    black \
+    flake8 \
+    pytest \
+    google-cloud-storage \
+    google-cloud-firestore \
+    google-generativeai
+
+# Install code-server
+RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --version=${CODE_SERVER_VERSION}
+
+# Switch to user
+USER ${USER}
+WORKDIR /home/${USER}
+
+# Create necessary directories
+RUN mkdir -p /home/${USER}/.config/code-server \
+    /home/${USER}/.local/share/code-server/extensions \
+    /home/${USER}/workspace \
+    /home/${USER}/extensions \
+    /home/${USER}/.ssh \
+    /home/${USER}/.aws \
+    /home/${USER}/.gcp
+
+# Install VS Code extensions
+RUN code-server --install-extension ms-python.python && \
+    code-server --install-extension ms-vscode.vscode-typescript-next && \
+    code-server --install-extension bradlc.vscode-tailwindcss && \
+    code-server --install-extension esbenp.prettier-vscode && \
+    code-server --install-extension ms-vscode.vscode-eslint && \
+    code-server --install-extension formulahendry.auto-rename-tag && \
+    code-server --install-extension ms-vscode.vscode-json && \
+    code-server --install-extension redhat.vscode-yaml && \
+    code-server --install-extension ms-vscode-remote.remote-containers && \
+    code-server --install-extension ms-azuretools.vscode-docker && \
+    code-server --install-extension hashicorp.terraform && \
+    code-server --install-extension ms-kubernetes-tools.vscode-kubernetes-tools && \
+    code-server --install-extension GoogleCloudTools.cloudcode && \
+    code-server --install-extension ms-vscode.vscode-github && \
+    code-server --install-extension GitHub.copilot && \
+    code-server --install-extension ms-vsliveshare.vsliveshare
+
+# Copy CloudIDE+ configuration
+COPY --chown=${USER}:${USER} config/code-server-config.yaml /home/${USER}/.config/code-server/config.yaml
+COPY --chown=${USER}:${USER} config/settings.json /home/${USER}/.local/share/code-server/User/settings.json
+COPY --chown=${USER}:${USER} config/keybindings.json /home/${USER}/.local/share/code-server/User/keybindings.json
+
+# Copy CloudIDE+ extensions
+COPY --chown=${USER}:${USER} extensions/ /home/${USER}/extensions/
+
+# Install CloudIDE+ extensions
+RUN if [ -d "/home/${USER}/extensions" ]; then \
+        find /home/${USER}/extensions -name "*.vsix" -exec code-server --install-extension {} \; ; \
+    fi
+
+# Copy startup scripts
+COPY --chown=${USER}:${USER} scripts/start-cloudide.sh /home/${USER}/start-cloudide.sh
+COPY --chown=${USER}:${USER} scripts/health-check.sh /home/${USER}/health-check.sh
+RUN chmod +x /home/${USER}/start-cloudide.sh /home/${USER}/health-check.sh
+
+# Environment setup
+ENV PATH="/home/${USER}/.local/bin:${PATH}"
+ENV SHELL="/bin/bash"
+ENV EDITOR="code-server"
+
+# Set up Git configuration
+RUN git config --global init.defaultBranch main && \
+    git config --global pull.rebase false && \
+    git config --global core.editor "code-server --wait"
+
+# Create workspace structure
+RUN mkdir -p /home/${USER}/workspace/{projects,templates,shared,temp} && \
+    echo "Welcome to CloudIDE+!" > /home/${USER}/workspace/README.md
+
+# Expose ports
+EXPOSE 8080 3000 3001 5000 8000 8888
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD /home/${USER}/health-check.sh
+
+# Set the entrypoint
+ENTRYPOINT ["/home/coder/start-cloudide.sh"]

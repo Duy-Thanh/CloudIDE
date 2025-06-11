@@ -1,0 +1,44 @@
+# CloudIDE+ Code Server Configuration
+bind-addr: 0.0.0.0:8080
+auth: password
+password: cloudide123
+cert: false
+
+# Workspace settings
+user-data-dir: /home/coder/.local/share/code-server
+extensions-dir: /home/coder/.local/share/code-server/extensions
+workspace-dir: /home/coder/workspace
+
+# Disable telemetry
+disable-telemetry: true
+disable-update-check: true
+
+# Security settings
+disable-getting-started-override: true
+disable-workspace-trust: false
+
+# Performance settings
+log: info
+verbose: false
+
+# CloudIDE+ specific settings
+enable-proposed-api: true
+locale: en
+install-source: docker
+
+# Additional args for VS Code
+additional-args:
+  - "--enable-remote-auto-shutdown"
+  - "--remote-auto-shutdown-delay=30"
+  - "--disable-gpu"
+  - "--no-sandbox"
+  - "--disable-dev-shm-usage"
+
+# Environment variables
+env:
+  CLOUDIDE_VERSION: "0.1.0"
+  CLOUDIDE_MODE: "development"
+  NODE_ENV: "development"
+  SHELL: "/bin/bash"
+  EDITOR: "code-server"
+  BROWSER: "none"

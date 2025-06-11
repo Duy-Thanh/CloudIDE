@@ -1,0 +1,357 @@
+## CloudIDE+ .gitignore
+
+## ===============================================
+## ENVIRONMENT & SECRETS
+## ===============================================
+#.env
+#.env.local
+#.env.production
+#.env.staging
+#*.key
+#*.pem
+#*.p12
+#*.jks
+#service-account*.json
+#firebase-adminsdk*.json
+
+## ===============================================
+## NODE.JS & NPM
+## ===============================================
+#node_modules/
+#npm-debug.log*
+#yarn-debug.log*
+#yarn-error.log*
+#lerna-debug.log*
+#.npm
+#.eslintcache
+#.node_repl_history
+#*.tgz
+#.yarn-integrity
+#.pnp.*
+
+## ===============================================
+## BUILD OUTPUTS
+## ===============================================
+#dist/
+#build/
+#out/
+#.next/
+#.nuxt/
+#.vuepress/dist/
+#.serverless/
+#.fusebox/
+#.dynamodb/
+#.tern-port
+#*.vsix
+#*.tsbuildinfo
+#.ultra.cache.json
+
+## ===============================================
+## LOGS & DEBUGGING
+## ===============================================
+#logs/
+#*.log
+#pids/
+#*.pid
+#*.seed
+#*.pid.lock
+#.grunt
+#lib-cov
+#coverage/
+#.nyc_output
+#.coverage
+#*.lcov
+#.instrument
+#.nyc_output/
+
+## ===============================================
+## RUNTIME DATA
+## ===============================================
+#pids
+#*.pid
+#*.seed
+#*.pid.lock
+#.lock-wscript
+#.wafpickle-*
+#.node_repl_history
+#*.tgz
+#.yarn-integrity
+
+## ===============================================
+## EDITOR & IDE
+## ===============================================
+#.vscode/settings.json
+#.vscode/launch.json
+#.vscode/extensions.json
+#.idea/
+#*.swp
+#*.swo
+#*~
+#.DS_Store
+#.DS_Store?
+#._*
+#.Spotlight-V100
+#.Trashes
+#ehthumbs.db
+#Thumbs.db
+
+## ===============================================
+## DOCKER & CONTAINERIZATION
+## ===============================================
+#.dockerignore
+#docker-compose.override.yml
+#.docker/
+#docker/data/
+#volumes/
+
+## ===============================================
+## CLOUD CREDENTIALS & CONFIG
+## ===============================================
+#.gcp/
+#.aws/
+#.azure/
+#.firebase/
+#.vercel/
+#.netlify/
+#.cloudflare/
+
+## ===============================================
+## DATABASE
+## ===============================================
+#*.db
+#*.sqlite
+#*.sqlite3
+#db.json
+#database.json
+
+## ===============================================
+## CACHE & TEMPORARY FILES
+## ===============================================
+#.cache/
+#.tmp/
+#.temp/
+#tmp/
+#temp/
+#.sass-cache/
+#*.css.map
+#*.js.map
+#.parcel-cache/
+#.rpt2_cache/
+#.rts2_cache_cjs/
+#.rts2_cache_es/
+#.rts2_cache_umd/
+
+## ===============================================
+## PACKAGE MANAGERS
+## ===============================================
+#.pnpm-debug.log*
+#.yarn/*
+#!.yarn/patches
+#!.yarn/plugins
+#!.yarn/releases
+#!.yarn/sdks
+#!.yarn/versions
+
+## ===============================================
+## TESTING
+## ===============================================
+#coverage/
+#.nyc_output/
+#.coverage/
+#*.lcov
+#junit.xml
+#test-results/
+#playwright-report/
+#test-results.xml
+
+## ===============================================
+## CLOUDIDE+ SPECIFIC
+## ===============================================
+#workspace/temp/
+#workspace/shared/temp/
+#cloudide-extensions/*/dist/
+#cloudide-extensions/*/out/
+#cloudide-extensions/*/node_modules/
+#config/user-*
+#config/temp-*
+#scripts/temp-*
+
+## Extension development
+#*.vsix
+#extension-logs/
+#extension-test-results/
+
+## User data and workspace
+#workspace/projects/*/node_modules/
+#workspace/projects/*/dist/
+#workspace/projects/*/build/
+#workspace/projects/*/.env*
+#workspace/temp/
+#workspace/.history/
+
+## Monitoring data
+#monitoring/data/
+#grafana/data/
+#prometheus/data/
+
+## Backup files
+#*.backup
+#*.bak
+#backups/
+
+## ===============================================
+## PLATFORM SPECIFIC
+## ===============================================
+
+## Windows
+#Thumbs.db
+#ehthumbs.db
+#Desktop.ini
+#$RECYCLE.BIN/
+#*.cab
+#*.msi
+#*.msix
+#*.msm
+#*.msp
+#*.lnk
+
+## macOS
+#.DS_Store
+#.AppleDouble
+#.LSOverride
+#Icon
+#._*
+#.DocumentRevisions-V100
+#.fseventsd
+#.Spotlight-V100
+#.TemporaryItems
+#.Trashes
+#.VolumeIcon.icns
+#.com.apple.timemachine.donotpresent
+#.AppleDB
+#.AppleDesktop
+#Network Trash Folder
+#Temporary Items
+#.apdisk
+
+## Linux
+#*~
+#.fuse_hidden*
+#.directory
+#.Trash-*
+#.nfs*
+
+## ===============================================
+## LANGUAGE SPECIFIC
+## ===============================================
+
+## Python
+#__pycache__/
+#*.py[cod]
+#*$py.class
+#*.so
+#.Python
+#env/
+#venv/
+#ENV/
+#env.bak/
+#venv.bak/
+#.venv/
+#pip-log.txt
+#pip-delete-this-directory.txt
+#.tox/
+#.coverage
+#.pytest_cache/
+#.mypy_cache/
+#.dmypy.json
+#dmypy.json
+
+## Java
+#*.class
+#*.jar
+#*.war
+#*.nar
+#*.ear
+#*.zip
+#*.tar.gz
+#*.rar
+#hs_err_pid*
+
+## Go
+#*.exe
+#*.exe~
+#*.dll
+#*.so
+#*.dylib
+#*.test
+#*.out
+#go.work
+
+## Rust
+#/target/
+#Cargo.lock
+
+## Ruby
+#*.gem
+#*.rbc
+#/.config
+#/coverage/
+#/InstalledFiles
+#/pkg/
+#/spec/reports/
+#/spec/examples.txt
+#/test/tmp/
+#/test/version_tmp/
+#/tmp/
+#.bundle/
+#vendor/bundle/
+
+## PHP
+#/vendor/
+#composer.phar
+#composer.lock
+#.env.php
+
+## ===============================================
+## CLOUD SERVICES DATA
+## ===============================================
+#.firebase/
+#.vercel/
+#.netlify/
+#.aws/
+#.gcp/
+#.azure/
+
+## ===============================================
+## SECURITY
+## ===============================================
+#*.pem
+#*.key
+#*.cert
+#*.crt
+#*.p12
+#*.pfx
+#secrets/
+#ssl/
+#certificates/
+
+## ===============================================
+## WORKSPACE EXCLUSIONS
+## ===============================================
+## Exclude sensitive user projects
+#workspace/projects/private/
+#workspace/projects/confidential/
+#workspace/shared/private/
+
+## Exclude large files and binaries
+#*.iso
+#*.dmg
+#*.img
+#*.vmdk
+#*.ova
+#*.ovf
+
+## ===============================================
+## CUSTOM EXCLUSIONS
+## ===============================================
+## Add your custom exclusions here

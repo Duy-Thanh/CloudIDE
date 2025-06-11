@@ -1,0 +1,143 @@
+# CloudIDE+ Coder Development Environment
+# Based on the official Coder source with CloudIDE+ customizations
+
+FROM node:18-bullseye AS frontend-builder
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy package files for caching
+COPY site/package.json site/pnpm-lock.yaml ./site/
+COPY package.json pnpm-lock.yaml* ./
+
+# Install dependencies
+RUN cd site && pnpm install --frozen-lockfile
+
+# Copy source code
+COPY site ./site
+
+# Build frontend with CloudIDE+ customizations
+ENV VITE_CLOUDIDE_BRANDING=true
+ENV VITE_CLOUDIDE_FEATURES=all
+RUN cd site && pnpm run build
+
+# Go builder stage
+FROM golang:1.21-bullseye AS go-builder
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    git \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Terraform
+ENV TERRAFORM_VERSION=1.6.0
+RUN curl -fsSL https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip -o terraform.zip \
+    && unzip terraform.zip \
+    && mv terraform /usr/local/bin/ \
+    && rm terraform.zip
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy go mod files for caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Copy built frontend
+COPY --from=frontend-builder /workspace/site/out ./site/out
+
+# Build CloudIDE+ enhanced Coder
+ENV CGO_ENABLED=0
+ENV GOOS=linux
+ENV GOARCH=amd64
+
+# Build with CloudIDE+ features enabled
+RUN make build/coder_linux_amd64
+
+# Final runtime stage
+FROM ubuntu:22.04
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    git \
+    openssh-client \
+    wget \
+    unzip \
+    jq \
+    postgresql-client \
+    redis-tools \
+    docker.io \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js and pnpm for extension development
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g pnpm
+
+# Install VS Code CLI for extension management
+RUN curl -Lk 'https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64' --output vscode_cli.tar.gz \
+    && tar -xf vscode_cli.tar.gz \
+    && mv code /usr/local/bin/code \
+    && rm vscode_cli.tar.gz
+
+# Create coder user
+RUN useradd --create-home --shell=/bin/bash coder \
+    && usermod -aG docker coder
+
+# Set working directory
+WORKDIR /home/coder
+
+# Copy built binary
+COPY --from=go-builder /workspace/build/coder_linux_amd64 /usr/local/bin/coder
+
+# Copy CloudIDE+ configurations
+COPY --chown=coder:coder cloudide-plus/config/coder/ ./config/
+COPY --chown=coder:coder cloudide-plus/scripts/ ./scripts/
+
+# Create necessary directories
+RUN mkdir -p \
+    /home/coder/.config/coderv2 \
+    /home/coder/.local/share/code-server \
+    /home/coder/extensions \
+    /home/coder/templates \
+    && chown -R coder:coder /home/coder
+
+# Install CloudIDE+ templates
+COPY --chown=coder:coder cloudide-plus/templates/ ./templates/
+
+# Switch to coder user
+USER coder
+
+# Environment variables for CloudIDE+
+ENV CODER_DATA_DIRECTORY=/home/coder/.config/coderv2
+ENV CODER_CACHE_DIRECTORY=/home/coder/.cache/coder
+ENV CLOUDIDE_EXTENSIONS_DIR=/home/coder/extensions
+ENV CLOUDIDE_TEMPLATES_DIR=/home/coder/templates
+
+# CloudIDE+ feature flags
+ENV CLOUDIDE_GOOGLE_DRIVE_ENABLED=true
+ENV CLOUDIDE_FIREBASE_ENABLED=true
+ENV CLOUDIDE_GEMINI_ENABLED=true
+ENV CLOUDIDE_ZOHO_ENABLED=true
+ENV CLOUDIDE_CLOUDFLARE_ENABLED=true
+
+# Expose ports
+EXPOSE 3000 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:3000/healthz || exit 1
+
+# Default command
+CMD ["coder", "server", "--http-address", "0.0.0.0:3000"]

@@ -1,0 +1,213 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database for Coder
+  postgres:
+    image: postgres:15
+    container_name: cloudide-postgres
+    environment:
+      POSTGRES_DB: coder
+      POSTGRES_USER: coder
+      POSTGRES_PASSWORD: coder_dev_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./config/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - cloudide-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coder -d coder"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for session storage and caching
+  redis:
+    image: redis:7-alpine
+    container_name: cloudide-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - cloudide-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Coder development server
+  coder-dev:
+    build:
+      context: ../coder
+      dockerfile: ../cloudide-plus/docker/Dockerfile.coder-dev
+    container_name: cloudide-coder-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database configuration
+      CODER_PG_CONNECTION_URL: "postgres://coder:coder_dev_password@postgres:5432/coder?sslmode=disable"
+
+      # Redis configuration
+      CODER_CACHE_REDIS_URL: "redis://redis:6379"
+
+      # Development settings
+      CODER_HTTP_ADDRESS: "0.0.0.0:3000"
+      CODER_ACCESS_URL: "http://localhost:3000"
+      CODER_WILDCARD_ACCESS_URL: "*.cloudide.localhost:3000"
+      CODER_SWAGGER_ENABLE: "true"
+      CODER_DANGEROUS_ALLOW_CORS_REQUESTS: "true"
+      CODER_ENABLE_TERRAFORM_DEBUG_MODE: "true"
+
+      # CloudIDE+ custom configurations
+      CLOUDIDE_GOOGLE_DRIVE_API_KEY: "${CLOUDIDE_GOOGLE_DRIVE_API_KEY:-}"
+      CLOUDIDE_FIREBASE_CONFIG: "${CLOUDIDE_FIREBASE_CONFIG:-}"
+      CLOUDIDE_GEMINI_API_KEY: "${CLOUDIDE_GEMINI_API_KEY:-}"
+      CLOUDIDE_ZOHO_SALESIQ_KEY: "${CLOUDIDE_ZOHO_SALESIQ_KEY:-}"
+      CLOUDIDE_CLOUDFLARE_API_TOKEN: "${CLOUDIDE_CLOUDFLARE_API_TOKEN:-}"
+
+      # Development mode
+      CODER_DEV_MODE: "true"
+      CODER_VERBOSE: "true"
+    ports:
+      - "3000:3000"
+      - "8080:8080"  # Frontend dev server
+    volumes:
+      - ../coder:/workspace/coder
+      - ../cloudide-plus:/workspace/cloudide-plus
+      - coder_data:/home/coder/.config/coderv2
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - cloudide-network
+    restart: unless-stopped
+
+  # Frontend development server
+  frontend-dev:
+    build:
+      context: ../coder/site
+      dockerfile: ../../cloudide-plus/docker/Dockerfile.frontend-dev
+    container_name: cloudide-frontend-dev
+    environment:
+      CODER_HOST: "http://coder-dev:3000"
+      VITE_API_URL: "http://localhost:3000"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../coder/site:/workspace/site
+      - ../cloudide-plus/extensions:/workspace/extensions
+      - node_modules:/workspace/site/node_modules
+    networks:
+      - cloudide-network
+    depends_on:
+      - coder-dev
+
+  # VS Code extension development
+  extension-dev:
+    build:
+      context: ../cloudide-plus/extensions
+      dockerfile: ../docker/Dockerfile.extension-dev
+    container_name: cloudide-extension-dev
+    environment:
+      CODER_API_URL: "http://coder-dev:3000"
+    volumes:
+      - ../cloudide-plus/extensions:/workspace/extensions
+      - extension_node_modules:/workspace/extensions/node_modules
+    networks:
+      - cloudide-network
+    depends_on:
+      - coder-dev
+
+  # Cloudflare Tunnel (for external access)
+  cloudflare-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudide-tunnel
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    environment:
+      TUNNEL_TOKEN: "${CLOUDFLARE_TUNNEL_TOKEN:-}"
+    networks:
+      - cloudide-network
+    depends_on:
+      - coder-dev
+    profiles:
+      - production
+      - tunnel
+
+  # Monitoring and observability
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cloudide-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - cloudide-network
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cloudide-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - cloudide-network
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+
+  # Development tools
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: cloudide-mailhog
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - cloudide-network
+    profiles:
+      - dev-tools
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  coder_data:
+    driver: local
+  node_modules:
+    driver: local
+  extension_node_modules:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  cloudide-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Development helpers
+x-common-variables: &common-variables
+  CLOUDIDE_ENVIRONMENT: development
+  CLOUDIDE_LOG_LEVEL: debug
+  CLOUDIDE_TELEMETRY_ENABLED: false

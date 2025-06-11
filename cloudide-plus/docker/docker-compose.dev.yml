@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # PostgreSQL database for Coder
@@ -43,7 +43,7 @@ services:
   # Coder development server
   coder-dev:
     build:
-      context: ../coder
+      context: ../../coder
       dockerfile: ../cloudide-plus/docker/Dockerfile.coder-dev
     container_name: cloudide-coder-dev
     depends_on:
@@ -78,10 +78,10 @@ services:
       CODER_VERBOSE: "true"
     ports:
       - "3000:3000"
-      - "8080:8080"  # Frontend dev server
+      - "8080:8080" # Frontend dev server
     volumes:
-      - ../coder:/workspace/coder
-      - ../cloudide-plus:/workspace/cloudide-plus
+      - ../../coder:/workspace/coder
+      - ../:/workspace/cloudide-plus
       - coder_data:/home/coder/.config/coderv2
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
@@ -91,7 +91,7 @@ services:
   # Frontend development server
   frontend-dev:
     build:
-      context: ../coder/site
+      context: ../../coder/site
       dockerfile: ../../cloudide-plus/docker/Dockerfile.frontend-dev
     container_name: cloudide-frontend-dev
     environment:
@@ -100,8 +100,8 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ../coder/site:/workspace/site
-      - ../cloudide-plus/extensions:/workspace/extensions
+      - ../../coder/site:/workspace/site
+      - ../extensions:/workspace/extensions
       - node_modules:/workspace/site/node_modules
     networks:
       - cloudide-network
@@ -111,13 +111,13 @@ services:
   # VS Code extension development
   extension-dev:
     build:
-      context: ../cloudide-plus/extensions
+      context: ../extensions
       dockerfile: ../docker/Dockerfile.extension-dev
     container_name: cloudide-extension-dev
     environment:
       CODER_API_URL: "http://coder-dev:3000"
     volumes:
-      - ../cloudide-plus/extensions:/workspace/extensions
+      - ../extensions:/workspace/extensions
       - extension_node_modules:/workspace/extensions/node_modules
     networks:
       - cloudide-network
@@ -176,8 +176,8 @@ services:
     image: mailhog/mailhog:latest
     container_name: cloudide-mailhog
     ports:
-      - "1025:1025"  # SMTP
-      - "8025:8025"  # Web UI
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
     networks:
       - cloudide-network
     profiles:

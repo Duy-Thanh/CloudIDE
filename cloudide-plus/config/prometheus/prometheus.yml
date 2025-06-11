@@ -1,0 +1,170 @@
+# CloudIDE+ Prometheus Configuration
+# Monitoring configuration for CloudIDE+ development platform
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'cloudide-dev'
+    environment: 'development'
+
+# Rule files
+rule_files:
+  - "cloudide_rules.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 15s
+    metrics_path: /metrics
+
+  # CloudIDE+ Coder server monitoring
+  - job_name: 'coder-server'
+    static_configs:
+      - targets: ['coder-dev:3000']
+    scrape_interval: 30s
+    metrics_path: /api/v2/metrics
+    basic_auth:
+      username: 'prometheus'
+      password: 'prometheus_password'
+
+  # PostgreSQL monitoring (using postgres_exporter)
+  - job_name: 'postgresql'
+    static_configs:
+      - targets: ['postgres:5432']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # Redis monitoring (using redis_exporter)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # Node.js application monitoring (frontend dev server)
+  - job_name: 'frontend-dev'
+    static_configs:
+      - targets: ['frontend-dev:8080']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # CloudIDE+ workspace monitoring
+  - job_name: 'cloudide-workspaces'
+    static_configs:
+      - targets: ['cloudide-workspace:8080']
+    scrape_interval: 60s
+    metrics_path: /metrics
+
+  # Docker container monitoring (using cAdvisor)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # CloudIDE+ API endpoints monitoring
+  - job_name: 'cloudide-api'
+    static_configs:
+      - targets: ['coder-dev:3000']
+    scrape_interval: 30s
+    metrics_path: /api/v1/cloudide/metrics
+    params:
+      module: [cloudide_api]
+
+  # Extension development environment monitoring
+  - job_name: 'extension-dev'
+    static_configs:
+      - targets: ['extension-dev:3000']
+    scrape_interval: 60s
+    metrics_path: /metrics
+
+# CloudIDE+ specific scrape configurations
+  # Google Drive API metrics
+  - job_name: 'google-drive-integration'
+    static_configs:
+      - targets: ['coder-dev:3000']
+    scrape_interval: 60s
+    metrics_path: /api/v1/google-drive/metrics
+
+  # Firebase integration metrics
+  - job_name: 'firebase-integration'
+    static_configs:
+      - targets: ['coder-dev:3000']
+    scrape_interval: 60s
+    metrics_path: /api/v1/firebase/metrics
+
+  # Gemini AI metrics
+  - job_name: 'gemini-ai'
+    static_configs:
+      - targets: ['coder-dev:3000']
+    scrape_interval: 60s
+    metrics_path: /api/v1/gemini/metrics
+
+  # Zoho SalesIQ metrics
+  - job_name: 'zoho-salesiq'
+    static_configs:
+      - targets: ['coder-dev:3000']
+    scrape_interval: 60s
+    metrics_path: /api/v1/zoho/metrics
+
+  # Cloudflare integration metrics
+  - job_name: 'cloudflare-integration'
+    static_configs:
+      - targets: ['coder-dev:3000']
+    scrape_interval: 60s
+    metrics_path: /api/v1/cloudflare/metrics
+
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# Recording rules for CloudIDE+ metrics
+recording_rules:
+  - name: cloudide_recording_rules
+    rules:
+      # Workspace utilization rate
+      - record: cloudide:workspace_utilization_rate
+        expr: rate(cloudide_workspace_active_time_seconds_total[5m])
+
+      # API request rate by service
+      - record: cloudide:api_request_rate_by_service
+        expr: rate(cloudide_api_requests_total[5m])
+
+      # Error rate by service
+      - record: cloudide:error_rate_by_service
+        expr: rate(cloudide_api_errors_total[5m]) / rate(cloudide_api_requests_total[5m])
+
+      # Storage usage by user
+      - record: cloudide:storage_usage_by_user
+        expr: sum(cloudide_storage_bytes) by (user_id)
+
+      # Extension usage statistics
+      - record: cloudide:extension_usage_rate
+        expr: rate(cloudide_extension_activations_total[5m])
+
+# Remote write configuration (for production environments)
+# remote_write:
+#   - url: "https://prometheus.cloudide.dev/api/v1/write"
+#     basic_auth:
+#       username: "cloudide"
+#       password: "secure_password"
+
+# Storage configuration
+storage:
+  tsdb:
+    retention.time: 15d
+    retention.size: 10GB
+
+# Web configuration
+web:
+  console.templates: 'consoles'
+  console.libraries: 'console_libraries'
+  enable-lifecycle: true
+  enable-admin-api: true

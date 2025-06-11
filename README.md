@@ -1,98 +1,197 @@
-CloudIDE+
+# CloudIDE+
 
-CloudIDE+ is a powerful, browser-based integrated development environment (IDE) inspired by Visual Studio Code, built on modern cloud technologies. It provides developers with a seamless, lightweight coding experience accessible from anywhere, integrating Google Cloud services for authentication, file management, and collaboration, alongside live user support powered by Zoho SalesIQ.
+**A Powerful Cloud Development Environment Built on VS Code**
 
-Project Overview
+CloudIDE+ is a cloud-native development platform that extends Visual Studio Code with custom extensions for seamless cloud integration. Built on [code-server](https://github.com/coder/code-server), it provides the full VS Code experience in your browser with powerful cloud development tools.
 
-CloudIDE+ is a cloud-hosted, full-featured web IDE aimed at delivering the familiar experience of Visual Studio Code directly in the browser without any local setup. Leveraging Google Cloud Compute Engine for backend infrastructure and multiple Google APIs for user management and data persistence, the platform targets developers needing an accessible, secure, and scalable coding environment.
+## 🚀 What Makes CloudIDE+ Different
 
-By integrating Zoho SalesIQ, CloudIDE+ provides real-time live chat support and visitor analytics, enhancing user engagement and support capabilities within the IDE itself.
-Key Features
+Instead of recreating VS Code from scratch, CloudIDE+ leverages the battle-tested VS Code platform and enhances it with:
 
-    Browser-based Visual Studio Code Experience: Access a modern, responsive IDE without installation.
+- **Real Terminal Access**: Full Linux environment with sudo privileges
+- **Cloud Storage Integration**: Seamless sync with Google Drive, Dropbox, OneDrive
+- **One-Click Deployments**: Direct deployment to Vercel, Netlify, AWS, and more
+- **Collaborative Features**: Enhanced real-time collaboration beyond Live Share
+- **Pre-configured Development Environments**: Ready-to-use setups for different tech stacks
 
-    Google Firebase Integration: Secure authentication, real-time database, and cloud storage for project persistence.
+## 🏗️ Architecture
 
-    Google Drive API: Save, load, and sync code files seamlessly with users' Google Drive.
+### Core Platform: code-server
+- Full VS Code running in Docker containers
+- Real terminal access and system-level tools
+- Complete extension marketplace compatibility
+- Authentic VS Code experience
 
-    Google reCAPTCHA: Protect against bots and automated abuse to maintain platform integrity.
+### Custom Extensions Suite
+```
+cloudide-extensions/
+├── cloudide-core/              # Core platform integration
+├── cloud-storage-sync/         # Multi-cloud file synchronization
+├── one-click-deploy/          # Deployment automation
+├── collaboration-plus/        # Enhanced team features
+├── ai-coding-assistant/       # AI-powered development tools
+└── environment-manager/       # Development environment templates
+```
 
-    Cloudflare Services: Enhance security with DDoS protection and CDN for low latency and global availability.
+## 🛠️ Technology Stack
 
-    Gemini Protocol Support (optional): Support for lightweight, privacy-focused text data transfer.
+**Platform**
+- **Base**: [code-server](https://github.com/coder/code-server) (VS Code in the browser)
+- **Container**: Docker for isolated development environments
+- **Orchestration**: Docker Compose for multi-service setups
 
-    Zoho SalesIQ Live Chat: Embedded live chat support, visitor tracking, and engagement analytics.
+**Cloud Integrations**
+- **Storage**: Google Drive API, Dropbox API, OneDrive API, AWS S3
+- **Deployment**: Vercel API, Netlify API, AWS Lambda, Google Cloud Functions
+- **Authentication**: Google OAuth, GitHub OAuth, Microsoft OAuth
+- **Monitoring**: Real-time error tracking and performance monitoring
 
-Zoho SalesIQ Integration
+**Extensions Development**
+- **Framework**: VS Code Extension API
+- **Language**: TypeScript
+- **Build**: webpack, esbuild
+- **Testing**: VS Code Extension Test Runner
 
-CloudIDE+ embeds Zoho SalesIQ to deliver:
+## 📦 Quick Start
 
-    Instant, live technical support and user assistance.
+### Using Docker (Recommended)
 
-    Real-time visitor analytics to understand user interactions.
+```bash
+# Clone the repository
+git clone https://github.com/Duy-Thanh/CloudIDE.git
+cd CloudIDE
 
-    Proactive chat prompts to help users navigate and solve issues faster.
+# Start CloudIDE+ with our custom extensions
+docker-compose up -d
 
-    Insightful data to improve platform usability and feature development.
+# Access your IDE at http://localhost:8080
+```
 
-Technology Stack
+### Manual Installation
 
-    Frontend: React.js (or your choice of frontend framework) with Monaco Editor (Visual Studio Code core).
+```bash
+# Install code-server
+curl -fsSL https://code-server.dev/install.sh | sh
 
-    Backend: Node.js (or preferred backend) running on Google Compute Engine VM.
+# Install our custom extensions
+code-server --install-extension ./extensions/cloudide-core.vsix
+code-server --install-extension ./extensions/cloud-storage-sync.vsix
+code-server --install-extension ./extensions/one-click-deploy.vsix
 
-    Cloud Services:
+# Start with custom configuration
+code-server --config ./config/cloudide-config.yaml
+```
 
-        Firebase Authentication & Firestore/Realtime Database
+## 🔧 Features
 
-        Google Drive API for file management
+### 💾 Cloud Storage Integration
+- **Auto-sync**: Automatic file synchronization across cloud providers
+- **Conflict Resolution**: Smart merge for concurrent edits
+- **Offline Support**: Local caching with sync when online
+- **Version History**: Built-in version control with cloud backup
 
-        Google reCAPTCHA for security
+### 🚀 One-Click Deployments
+- **Frontend**: Deploy React, Vue, Angular apps to Vercel/Netlify
+- **Backend**: Deploy Node.js, Python APIs to AWS Lambda/Google Cloud
+- **Full-Stack**: Automated deployment pipelines with environment management
+- **Preview Deployments**: Automatic staging environments for PRs
 
-        Cloudflare for CDN, SSL, and security
+### 👥 Enhanced Collaboration
+- **Real-time Editing**: Multi-cursor editing with live presence
+- **Code Reviews**: Integrated review tools with commenting
+- **Team Workspaces**: Shared project environments
+- **Communication**: Built-in chat and video calls
 
-    Third-party Integrations:
+### 🤖 AI Development Assistant
+- **Code Completion**: Context-aware AI suggestions
+- **Bug Detection**: Automated code analysis and fixes
+- **Documentation**: Auto-generated docs and comments
+- **Refactoring**: AI-powered code improvements
 
-        Zoho SalesIQ for live chat and analytics
+## 🏭 Development Environments
 
-        Gemini protocol (optional) for alternative text transfer
+### Pre-configured Templates
+```bash
+# Full-stack JavaScript (MERN)
+cloudide create --template mern-stack
 
-Architecture
+# Python Data Science
+cloudide create --template python-datascience
 
-CloudIDE+ architecture separates frontend and backend layers, enabling scalability and maintainability:
+# React + TypeScript
+cloudide create --template react-typescript
 
-    Frontend: Single Page Application (SPA) served via Cloudflare CDN.
+# Microservices (Node.js + Docker)
+cloudide create --template microservices-node
+```
 
-    Backend: RESTful API and WebSocket services hosted on Compute Engine.
+### Custom Environment Builder
+- **Dockerfile Generator**: Visual interface for container configuration
+- **Extension Bundles**: Curated extension packs for different use cases
+- **Tool Installation**: One-click installation of development tools
+- **Environment Sharing**: Export/import environment configurations
 
-    Cloud Storage: Firebase Storage and Google Drive for file persistence.
+## 📊 Extensions Roadmap
 
-    Security: reCAPTCHA and Cloudflare protect the platform against abuse and attacks.
+### Phase 1: Core Platform (Q1 2024)
+- [x] CloudIDE+ Core Extension
+- [x] Google Drive Integration
+- [x] Basic deployment to Vercel
+- [ ] Team collaboration features
 
-    Support: Zoho SalesIQ widget embedded in the frontend for real-time interaction.
+### Phase 2: Advanced Cloud Features (Q2 2024)
+- [ ] Multi-cloud storage support (Dropbox, OneDrive)
+- [ ] AWS integration (Lambda, S3, CloudFormation)
+- [ ] Advanced deployment pipelines
+- [ ] Environment templates marketplace
 
-Deployment
+### Phase 3: AI & Automation (Q3 2024)
+- [ ] AI coding assistant integration
+- [ ] Automated testing and CI/CD
+- [ ] Performance monitoring dashboard
+- [ ] Advanced collaboration tools
 
-CloudIDE+ is deployed on a Google Compute Engine virtual machine, allowing:
+### Phase 4: Enterprise Features (Q4 2024)
+- [ ] SSO and enterprise authentication
+- [ ] Compliance and security tools
+- [ ] Custom extension marketplace
+- [ ] Advanced analytics and reporting
 
-    Full control over backend environment and resources.
+## 🤝 Contributing
 
-    Scalability to meet user demand.
+We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for details.
 
-    Integration with Google Cloud services for seamless API access.
+### Extension Development
+```bash
+# Set up development environment
+npm install -g yo generator-code
 
-    Use of Cloudflare for caching, SSL termination, and DDoS mitigation.
+# Create new extension
+yo code
 
-Future Enhancements
+# Install CloudIDE+ extension utilities
+npm install @cloudide/extension-utils
+```
 
-    AI-powered code completion and error detection.
+## 📄 License
 
-    Real-time collaborative editing with multiple users.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-    Extended cloud integrations: BigQuery, Cloud Functions, etc.
+## 🔗 Links
 
-    Offline mode with local caching.
+- **Live Demo**: [cloudide.dev](https://cloudide.dev)
+- **Documentation**: [docs.cloudide.dev](https://docs.cloudide.dev)
+- **Extension Marketplace**: [marketplace.cloudide.dev](https://marketplace.cloudide.dev)
+- **Community Discord**: [discord.gg/cloudide](https://discord.gg/cloudide)
 
-    Multi-language support and containerized builds.
+## ⭐ Why Choose CloudIDE+ Over Building From Scratch?
 
-    Enhanced security & compliance (OAuth scopes, encryption).
+1. **Proven Foundation**: Built on VS Code, used by millions of developers
+2. **Rich Ecosystem**: Access to thousands of existing extensions
+3. **Rapid Development**: Focus on innovation, not reinventing basic IDE features
+4. **Better UX**: Familiar interface that developers already know and love
+5. **Maintainable**: Microsoft handles core updates, we focus on cloud features
+
+---
+
+**CloudIDE+ - The Future of Cloud Development, Built on the Best of Today** 🚀

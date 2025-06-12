@@ -3,66 +3,66 @@
 ## ===============================================
 ## ENVIRONMENT & SECRETS
 ## ===============================================
-#.env
-#.env.local
-#.env.production
-#.env.staging
-#*.key
-#*.pem
-#*.p12
-#*.jks
-#service-account*.json
-#firebase-adminsdk*.json
+.env
+.env.local
+.env.production
+.env.staging
+*.key
+*.pem
+*.p12
+*.jks
+service-account*.json
+firebase-adminsdk*.json
 
 ## ===============================================
 ## NODE.JS & NPM
 ## ===============================================
-#node_modules/
-#npm-debug.log*
-#yarn-debug.log*
-#yarn-error.log*
-#lerna-debug.log*
-#.npm
-#.eslintcache
-#.node_repl_history
-#*.tgz
-#.yarn-integrity
-#.pnp.*
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.npm
+.eslintcache
+.node_repl_history
+*.tgz
+.yarn-integrity
+.pnp.*
 
 ## ===============================================
 ## BUILD OUTPUTS
 ## ===============================================
-#dist/
-#build/
-#out/
-#.next/
-#.nuxt/
-#.vuepress/dist/
-#.serverless/
-#.fusebox/
-#.dynamodb/
-#.tern-port
-#*.vsix
-#*.tsbuildinfo
-#.ultra.cache.json
+dist/
+build/
+out/
+.next/
+.nuxt/
+.vuepress/dist/
+.serverless/
+.fusebox/
+.dynamodb/
+.tern-port
+*.vsix
+*.tsbuildinfo
+.ultra.cache.json
 
 ## ===============================================
 ## LOGS & DEBUGGING
 ## ===============================================
-#logs/
-#*.log
-#pids/
-#*.pid
-#*.seed
-#*.pid.lock
-#.grunt
-#lib-cov
-#coverage/
-#.nyc_output
-#.coverage
-#*.lcov
-#.instrument
-#.nyc_output/
+logs/
+*.log
+pids/
+*.pid
+*.seed
+*.pid.lock
+.grunt
+lib-cov
+coverage/
+.nyc_output
+.coverage
+*.lcov
+.instrument
+.nyc_output/
 
 ## ===============================================
 ## RUNTIME DATA
@@ -98,11 +98,10 @@
 ## ===============================================
 ## DOCKER & CONTAINERIZATION
 ## ===============================================
-#.dockerignore
-#docker-compose.override.yml
-#.docker/
-#docker/data/
-#volumes/
+docker-compose.override.yml
+.docker/
+docker/data/
+volumes/
 
 ## ===============================================
 ## CLOUD CREDENTIALS & CONFIG
@@ -127,19 +126,19 @@
 ## ===============================================
 ## CACHE & TEMPORARY FILES
 ## ===============================================
-#.cache/
-#.tmp/
-#.temp/
-#tmp/
-#temp/
-#.sass-cache/
-#*.css.map
-#*.js.map
-#.parcel-cache/
-#.rpt2_cache/
-#.rts2_cache_cjs/
-#.rts2_cache_es/
-#.rts2_cache_umd/
+.cache/
+.tmp/
+.temp/
+tmp/
+temp/
+.sass-cache/
+*.css.map
+*.js.map
+.parcel-cache/
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
 
 ## ===============================================
 ## PACKAGE MANAGERS
@@ -167,37 +166,36 @@
 ## ===============================================
 ## CLOUDIDE+ SPECIFIC
 ## ===============================================
-#workspace/temp/
-#workspace/shared/temp/
-#cloudide-extensions/*/dist/
-#cloudide-extensions/*/out/
-#cloudide-extensions/*/node_modules/
-#config/user-*
-#config/temp-*
-#scripts/temp-*
+workspace/temp/
+workspace/shared/temp/
+cloudide-extensions/*/dist/
+cloudide-extensions/*/out/
+cloudide-extensions/*/node_modules/
+config/user-*
+config/temp-*
+scripts/temp-*
 
 ## Extension development
-#*.vsix
-#extension-logs/
-#extension-test-results/
+extension-logs/
+extension-test-results/
 
 ## User data and workspace
-#workspace/projects/*/node_modules/
-#workspace/projects/*/dist/
-#workspace/projects/*/build/
-#workspace/projects/*/.env*
-#workspace/temp/
-#workspace/.history/
+workspace/projects/*/node_modules/
+workspace/projects/*/dist/
+workspace/projects/*/build/
+workspace/projects/*/.env*
+workspace/temp/
+workspace/.history/
 
 ## Monitoring data
-#monitoring/data/
-#grafana/data/
-#prometheus/data/
+monitoring/data/
+grafana/data/
+prometheus/data/
 
 ## Backup files
-#*.backup
-#*.bak
-#backups/
+*.backup
+*.bak
+backups/
 
 ## ===============================================
 ## PLATFORM SPECIFIC

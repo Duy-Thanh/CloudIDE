@@ -25,7 +25,7 @@ Transform the cloud development experience by building powerful extensions on to
 **Goal**: Establish code-server infrastructure and development environment
 
 #### Week 1: Infrastructure & Environment
-- [x] **Day 1-2**: Repository restructuring and approach pivot
+- [ ] **Day 1-2**: Repository restructuring and approach pivot
 - [ ] **Day 3-4**: Docker setup for code-server
   - Create custom Docker images
   - Configure development containers

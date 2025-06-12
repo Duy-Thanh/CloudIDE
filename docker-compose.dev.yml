@@ -1,0 +1,56 @@
+version: "3.9"
+
+services:
+  # Coder development environment
+  coder:
+    image: ghcr.io/coder/coder:${CODER_VERSION:-latest}
+    container_name: cloudide-coder
+    ports:
+      - "7080:7080"
+    environment:
+      CODER_PG_CONNECTION_URL: "postgresql://${POSTGRES_USER:-coder}:${POSTGRES_PASSWORD:-coder123}@database/${POSTGRES_DB:-coder}?sslmode=disable"
+      CODER_HTTP_ADDRESS: "0.0.0.0:7080"
+      # Set this to your actual domain/IP for production
+      CODER_ACCESS_URL: "${CODER_ACCESS_URL:-http://localhost:7080}"
+      # Development settings
+      CODER_VERBOSE: "true"
+      CODER_LOG_HUMAN: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - coder_home:/home/coder
+      # Mount workspace for development
+      - ./workspace:/workspace
+      - ./cloudide-extensions:/extensions
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # PostgreSQL database for Coder
+  database:
+    image: "postgres:15-alpine"
+    container_name: cloudide-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-coder}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-coder123}
+      POSTGRES_DB: ${POSTGRES_DB:-coder}
+    volumes:
+      - coder_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-coder} -d ${POSTGRES_DB:-coder}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  coder_data:
+    driver: local
+  coder_home:
+    driver: local
